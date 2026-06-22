@@ -14,6 +14,8 @@ Optional env vars:
   GITHUB_TOKEN or GH_TOKEN   GitHub token (recommended to avoid low rate limits)
   DASHBOARD_DAYS             Lookback window in days (default: 30)
   DASHBOARD_OUTPUT           Output HTML path (default: docs/index.html)
+  ADO_ORG_URL or AZDO_ORG_URL   Azure DevOps org URL (for Epic/Bug links)
+  ADO_PROJECT or AZDO_PROJECT   Azure DevOps project name (for Epic/Bug links)
 """
 
 from __future__ import annotations
@@ -60,6 +62,8 @@ APPROVAL_LABELS: List[Tuple[str, str]] = [
 DEFAULT_DAYS = 30
 DEFAULT_OUTPUT_PATH = "docs/index.html"
 LEGACY_OUTPUT_PATH = "pr_metrics_dashboard.html"
+ADO_ORG_URL = (os.getenv("ADO_ORG_URL") or os.getenv("AZDO_ORG_URL") or "").rstrip("/")
+ADO_PROJECT = os.getenv("ADO_PROJECT") or os.getenv("AZDO_PROJECT") or ""
 
 
 @dataclass
@@ -182,11 +186,20 @@ def build_approval_strings(labels: Iterable[str]) -> Tuple[str, str]:
     return approvals, pending
 
 
-def extract_epic_id(title: str) -> str:
-    """Extract Epic/Bug ID (AB#XXXXX) from PR title."""
-    import re
-    match = re.search(r'AB#\d+', title)
-    return match.group(0) if match else "-"
+def extract_work_item_id(title: str) -> str:
+  """Extract Azure Boards work item id from AB#12345 token in PR title."""
+  import re
+  match = re.search(r"\bAB#(\d+)\b", title)
+  return match.group(1) if match else ""
+
+
+def build_ado_work_item_url(work_item_id: str) -> str:
+  if not work_item_id or not ADO_ORG_URL:
+    return ""
+  if ADO_PROJECT:
+    project = urllib.parse.quote(ADO_PROJECT, safe="")
+    return f"{ADO_ORG_URL}/{project}/_workitems/edit/{work_item_id}"
+  return f"{ADO_ORG_URL}/_workitems/edit/{work_item_id}"
 
 
 def latest_changes_requested_by(reviews: List[dict]) -> str:
@@ -304,11 +317,20 @@ def render_dashboard(team_to_rows: Dict[str, List[PullRow]], generated_at: str, 
             state_lower = r.state.lower()
             changes_data = r.changes_requested_by.lower().replace('"', "")
 
-            epic_id = extract_epic_id(r.title)
+            work_item_id = extract_work_item_id(r.title)
+            if work_item_id:
+              epic_label = f"AB#{work_item_id}"
+              ado_url = build_ado_work_item_url(work_item_id)
+              if ado_url:
+                epic_html = f'<a href="{html.escape(ado_url)}" target="_blank">{html.escape(epic_label)}</a>'
+              else:
+                epic_html = html.escape(epic_label)
+            else:
+              epic_html = "-"
             table_rows.append(
                 f"""
                 <tr data-state=\"{state_lower}\" data-created=\"{r.created_at}\" data-changes=\"{changes_data}\">
-                  <td><a href=\"{html.escape(r.url)}\" target=\"_blank\">#{r.number}</a><br/><small style=\"color:#999;font-size:11px;font-weight:normal\">{epic_id}</small></td>
+                <td><a href=\"{html.escape(r.url)}\" target=\"_blank\">#{r.number}</a><br/><small style=\"color:#999;font-size:11px;font-weight:normal\">{epic_html}</small></td>
                   <td>{title}</td>
                   <td>{author}</td>
                   <td>{r.state} {repo_short}</td>

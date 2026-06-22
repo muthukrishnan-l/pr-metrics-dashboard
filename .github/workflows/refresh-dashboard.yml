@@ -34,6 +34,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.DASHBOARD_GH_TOKEN }}
           DASHBOARD_DAYS: "30"
           DASHBOARD_OUTPUT: docs/index.html
+          ADO_ORG_URL: "https://dev.azure.com/Blackboard-01"
+          ADO_PROJECT: "Learn"
         run: python generate_pr_metrics_dashboard.py
 
       - name: Commit and push updates
