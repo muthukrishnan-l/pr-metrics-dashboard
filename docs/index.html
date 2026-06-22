@@ -1,0 +1,3444 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PR Metrics Dashboard</title>
+  <style>
+    :root {
+      --bg: #f2f5f9;
+      --ink: #1c2533;
+      --muted: #5a6472;
+      --card: #ffffff;
+      --line: #d9e1ea;
+      --accent: #0d9488;
+      --accent-2: #2563eb;
+      --warn: #b45309;
+      --ok: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Trebuchet MS", Tahoma, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 20% -10%, #d1fae5 0%, transparent 38%),
+        radial-gradient(circle at 90% 0%, #dbeafe 0%, transparent 35%),
+        var(--bg);
+    }
+    .container { max-width: 1500px; margin: 0 auto; padding: 18px; }
+    .hero {
+      background: linear-gradient(135deg, #0f766e, #1d4ed8);
+      color: #fff;
+      border-radius: 16px;
+      padding: 18px 22px;
+      box-shadow: 0 12px 34px rgba(22, 43, 75, 0.2);
+      margin-bottom: 14px;
+    }
+    .hero h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0.3px; }
+    .meta { font-size: 14px; opacity: 0.96; }
+    .team-list { margin-top: 8px; font-size: 14px; }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 3px 12px rgba(20, 28, 45, 0.05);
+    }
+    .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; }
+    .kpi .value { font-size: 24px; font-weight: 700; margin-top: 3px; }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; }
+    select, input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    .team-section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin: 10px 0 14px;
+      overflow: hidden;
+      box-shadow: 0 3px 12px rgba(20, 28, 45, 0.05);
+    }
+    .team-section h2 {
+      margin: 0;
+      padding: 12px;
+      font-size: 19px;
+      border-bottom: 1px solid var(--line);
+      background: #f8fafc;
+    }
+    .team-summary {
+      font-size: 13px;
+      color: var(--muted);
+      margin-left: 10px;
+      font-weight: 500;
+    }
+
+    .table-wrap { width: 100%; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; min-width: 1300px; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px 9px; text-align: left; vertical-align: top; }
+    th { background: #eef2ff; position: sticky; top: 0; z-index: 1; }
+    tbody tr:nth-child(odd) { background: #fcfdff; }
+    a { color: var(--accent-2); text-decoration: none; font-weight: 600; }
+    a:hover { text-decoration: underline; }
+
+    .footer { color: var(--muted); font-size: 12px; margin-top: 10px; }
+
+    @media (max-width: 760px) {
+      .hero h1 { font-size: 22px; }
+      .team-summary { display: block; margin: 6px 0 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="hero">
+      <h1>Scrum Teams PR Metrics Dashboard</h1>
+      <div class="meta">Repos: blackboard-learn/learn + blackboard-learn/ultra | Last 30 days</div>
+      <div class="meta" id="lastRefresh">Last refresh: 2026-06-22 11:34:35 UTC</div>
+      <div style="margin-top:10px">
+        <button id="refreshBtn" style="border:0;border-radius:10px;padding:9px 14px;background:#f8fafc;color:#0f172a;font-weight:700;cursor:pointer">Refresh Latest Status</button>
+      </div>
+      <div class="team-list">Teams: Sparrow | Jupiter | Karikalas | Shine | Mamallas | Trailblazers | Sparkle | Madras | Triton | Helios | Krypton | Radon</div>
+    </header>
+
+    <div class="summary">
+      <div class="kpi"><div class="label">Total PRs</div><div class="value">211</div></div>
+      <div class="kpi"><div class="label">Open</div><div class="value">57</div></div>
+      <div class="kpi"><div class="label">Draft</div><div class="value">59</div></div>
+      <div class="kpi"><div class="label">Merged</div><div class="value">79</div></div>
+      <div class="kpi"><div class="label">Closed</div><div class="value">16</div></div>
+    </div>
+
+    <section class="filters">
+      <div>
+        <label for="teamFilter">Filter by Team</label>
+        <select id="teamFilter">
+          <option value="ALL">All Teams</option>
+          <option value="Sparrow">Sparrow</option><option value="Jupiter">Jupiter</option><option value="Karikalas">Karikalas</option><option value="Shine">Shine</option><option value="Mamallas">Mamallas</option><option value="Trailblazers">Trailblazers</option><option value="Sparkle">Sparkle</option><option value="Madras">Madras</option><option value="Triton">Triton</option><option value="Helios">Helios</option><option value="Krypton">Krypton</option><option value="Radon">Radon</option>
+        </select>
+      </div>
+      <div>
+        <label for="stateFilter">State</label>
+        <select id="stateFilter">
+          <option value="ALL">All States</option>
+          <option value="open">Open</option>
+          <option value="draft">Draft</option>
+          <option value="merged">Merged</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+      <div>
+        <label for="changesFilter">Changes Requested By</label>
+        <input id="changesFilter" type="text" placeholder="e.g. user-login" />
+      </div>
+      <div>
+        <label for="daysFilter">Time Range</label>
+        <select id="daysFilter">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="60">Last 60 days</option>
+          <option value="3650">All fetched</option>
+        </select>
+      </div>
+    </section>
+
+    
+            <section class="team-section" data-team="Sparrow">
+              <h2>Sparrow Team
+                <span class="team-summary">Total: 16 | Open: 7 | Draft: 4 | Merged: 5 | Closed: 0</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="open" data-created="2026-06-18" data-changes="sakthi-selvapriya">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8344" target="_blank">#8344</a></td>
+                  <td>AB#685875 Remove description from Journal and Forum link content items</td>
+                  <td>HarrishRajaraman</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-18</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓</td>
+                  <td>VS Approval</td>
+                  <td>Sakthi-Selvapriya</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16803" target="_blank">#16803</a></td>
+                  <td>AB#552165 Screen readers now announce block position for videoStudio block</td>
+                  <td>HarrishRajaraman</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-16</td>
+                  <td>2026-06-18</td>
+                  <td>2026-06-18</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-15" data-changes="amyers-blackboard">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16771" target="_blank">#16771</a></td>
+                  <td>Feature - AB#681095  AVA virtual assistant dux changes - Data layer</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>amyers-blackboard</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-15" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16770" target="_blank">#16770</a></td>
+                  <td>Feature - AB#681095 AVA virtual assistant dux changes</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-12" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16738" target="_blank">#16738</a></td>
+                  <td>Feature/AB#681098 : Implemented AVA Overlay panel&#x27;s UI with header, footer and body </td>
+                  <td>siddarth-anthology</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-12</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>✓ Yes</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-09" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16639" target="_blank">#16639</a></td>
+                  <td>Feature - AB#681100 AVA Virtual assistant - useHistory hook</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-09</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-05" data-changes="amyers-blackboard, covertcj, jkhan07, stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16556" target="_blank">#16556</a></td>
+                  <td>Feature - AB#681099 - AVA Virtual assistant useCourseAssistantChat</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-05</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>amyers-blackboard, covertcj, jkhan07, stormojm</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16538" target="_blank">#16538</a></td>
+                  <td>Feature - AB#681095 AVA Virtual assistant - Adding dux services and selectors</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16536" target="_blank">#16536</a></td>
+                  <td>Feature/AB#681097: AVA student widget and angular bridge</td>
+                  <td>siddarth-anthology</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>2026-06-16</td>
+                  <td>2026-06-16</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-04" data-changes="amyers-blackboard">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16528" target="_blank">#16528</a></td>
+                  <td>Feature - AB#681095 AVA Virtual assistant - Redux Dux types and reducer</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓</td>
+                  <td>Team Approval, CES Approval, VS Approval</td>
+                  <td>amyers-blackboard</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-01" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16422" target="_blank">#16422</a></td>
+                  <td>AB#682047: Fix undo redo delete in description of journals and discussions</td>
+                  <td>DeepanaSundaram</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-01</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-01" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16415" target="_blank">#16415</a></td>
+                  <td>Feature - AB#681095 AVA Virtual assistant - Redux Dux types and reducer</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-01</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16355" target="_blank">#16355</a></td>
+                  <td>Feature - AB#681095 AVA Virtual assistant - Adding Foundations API client types and requests</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16344" target="_blank">#16344</a></td>
+                  <td>Feature/ab 681097 add ava student widget button</td>
+                  <td>siddarth-anthology</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-27" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16326" target="_blank">#16326</a></td>
+                  <td>Bugfix - AB#679908 Folders with More than 10 items in LM TOC result in collapsing the folder after accessing the 11th item</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-27</td>
+                  <td>2026-06-04</td>
+                  <td>2026-06-04</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-25" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16284" target="_blank">#16284</a></td>
+                  <td>Feature - AVA AI course assistant base design</td>
+                  <td>kamaliraghupathy</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-05-25</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Jupiter">
+              <h2>Jupiter Team
+                <span class="team-summary">Total: 24 | Open: 5 | Draft: 3 | Merged: 7 | Closed: 9</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="merged" data-created="2026-06-14" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16760" target="_blank">#16760</a></td>
+                  <td>Feature/rte/ab 684672 youtube redux</td>
+                  <td>jaysreenathbb</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-14</td>
+                  <td>2026-06-18</td>
+                  <td>2026-06-18</td>
+                  <td>CES ✓ VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-12" data-changes="covertcj, priceld, stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16739" target="_blank">#16739</a></td>
+                  <td>AB#675753 Legacy Gradebook Grid View Filter State Preservation</td>
+                  <td>yogaraj-mahendiran</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-12</td>
+                  <td>-</td>
+                  <td>2026-06-17</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>covertcj, priceld, stormojm</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16719" target="_blank">#16719</a></td>
+                  <td>Feature/ab 680261 gradebook state preserve</td>
+                  <td>yogaraj-mahendiran</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16717" target="_blank">#16717</a></td>
+                  <td>Feature AB#675725 gradebook state preserve</td>
+                  <td>yogaraj-mahendiran</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-10" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16693" target="_blank">#16693</a></td>
+                  <td>AB#675753 - New Gradebook Grid View Filter State Preservation</td>
+                  <td>yogaraj-mahendiran</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-10</td>
+                  <td>2026-06-22</td>
+                  <td>2026-06-22</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-09" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16645" target="_blank">#16645</a></td>
+                  <td>AB#679145 Fix scroll and sort preserve on back navigation list view</td>
+                  <td>rishviKalaiselvan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-12</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-09" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16640" target="_blank">#16640</a></td>
+                  <td>AB#679145  Fix scroll and sort preserve on back navigation</td>
+                  <td>rishviKalaiselvan</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-09</td>
+                  <td>-</td>
+                  <td>2026-06-09</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16608" target="_blank">#16608</a></td>
+                  <td>AB#680261 - Auto-reopen ToDo panel on return to course grades view</td>
+                  <td>yogaraj-mahendiran</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-11</td>
+                  <td>2026-06-11</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-08" data-changes="stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16602" target="_blank">#16602</a></td>
+                  <td>AB#683432: Preserve Gradebook sidebar state on navigation</td>
+                  <td>AishwaryaBhaskaran99</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>stormojm</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16550" target="_blank">#16550</a></td>
+                  <td>Bugfix/AB#549730 Instructor can search by category name</td>
+                  <td>skumaranblackboard</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>2026-06-05</td>
+                  <td>2026-06-05</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16530" target="_blank">#16530</a></td>
+                  <td>AB-681870-Gradebook grid cache usage in gradebook components</td>
+                  <td>sandhyas327</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>2026-06-10</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16529" target="_blank">#16529</a></td>
+                  <td>AB-681870-Gradebook grid cache usage in gradebook components</td>
+                  <td>sandhyas327</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>2026-06-04</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-03" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8253" target="_blank">#8253</a></td>
+                  <td>Revert &quot;AB#576846 - Unable to make a copy items copy with a system support copy role in Ultra unless they are enrolled (#7750)&quot;</td>
+                  <td>jaysreenathbb</td>
+                  <td>Merged Learn</td>
+                  <td>2026-06-03</td>
+                  <td>2026-06-03</td>
+                  <td>2026-06-03</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-03" data-changes="joe-soellner">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16511" target="_blank">#16511</a></td>
+                  <td>AB-681870-Gradebook grid cache usage in gradebook components</td>
+                  <td>sandhyas327</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-03</td>
+                  <td>-</td>
+                  <td>2026-06-04</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>joe-soellner</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-03" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16504" target="_blank">#16504</a></td>
+                  <td>AB_681870 Gradebook grid cache dux for API response caching</td>
+                  <td>sandhyas327</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-03</td>
+                  <td>-</td>
+                  <td>2026-06-03</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-02" data-changes="dsoto-bb, priceld, stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16473" target="_blank">#16473</a></td>
+                  <td>AB#680261: Retain Gradebook To Do panel scroll position, focus, and accordion section state across navigation</td>
+                  <td>yogaraj-mahendiran</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>dsoto-bb, priceld, stormojm</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16456" target="_blank">#16456</a></td>
+                  <td>Feature/rte/youtube</td>
+                  <td>jaysreenathbb</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-02" data-changes="amyers-blackboard, stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16455" target="_blank">#16455</a></td>
+                  <td>AB#563458 Youtube media node view implementation</td>
+                  <td>jaysreenathbb</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>CES ✓ VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval</td>
+                  <td>amyers-blackboard, stormojm</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-02" data-changes="davtohbb, jkhan07, stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16452" target="_blank">#16452</a></td>
+                  <td>AB#682048: Moved License Check to Video Studio Extension inside RTE</td>
+                  <td>AishwaryaBhaskaran99</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>davtohbb, jkhan07, stormojm</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16448" target="_blank">#16448</a></td>
+                  <td>AB#579602 Added API request classes for mashup call</td>
+                  <td>jaysreenathbb</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>✓ Yes</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-01" data-changes="amyers-blackboard, johntrianat, tbednarekbb">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16435" target="_blank">#16435</a></td>
+                  <td>AB#681870 - Gradebook grid cache dux for API response caching</td>
+                  <td>sandhyas327</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-01</td>
+                  <td>-</td>
+                  <td>2026-06-10</td>
+                  <td>Tech Lead ✓</td>
+                  <td>Team Approval, CES Approval, VS Approval</td>
+                  <td>amyers-blackboard, johntrianat, tbednarekBB</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-01" data-changes="yogaraj-mahendiran">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16430" target="_blank">#16430</a></td>
+                  <td>AB#675752 Fix rerender of column API for list view</td>
+                  <td>rishviKalaiselvan</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-01</td>
+                  <td>-</td>
+                  <td>2026-06-09</td>
+                  <td>CES ✓ VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval</td>
+                  <td>yogaraj-mahendiran</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-05-27" data-changes="stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16329" target="_blank">#16329</a></td>
+                  <td>AB#680208 - Preserve Pagination &amp; Scroll State - Gradebook Overview Tab</td>
+                  <td>sandhyas327</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-05-27</td>
+                  <td>-</td>
+                  <td>2026-06-18</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>stormojm</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-26" data-changes="abhishekp-cc, amyers-blackboard, covertcj, rakshithrrr">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16306" target="_blank">#16306</a></td>
+                  <td>AB#680261 - Persist Gradebook To Do Panel UI State with usePersistedState (FF=ON)</td>
+                  <td>yogaraj-mahendiran</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-26</td>
+                  <td>2026-06-10</td>
+                  <td>2026-06-10</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>abhishekp-cc, amyers-blackboard, covertcj, rakshithrrr</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Karikalas">
+              <h2>Karikalas Team
+                <span class="team-summary">Total: 32 | Open: 8 | Draft: 4 | Merged: 20 | Closed: 0</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="open" data-created="2026-06-22" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16959" target="_blank">#16959</a></td>
+                  <td>AB#685171  -  Create Multiple group UI updates</td>
+                  <td>jawakhar-n</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-22</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-22" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16952" target="_blank">#16952</a></td>
+                  <td>Feature/AB#549618 Wdio migration PTID=2291</td>
+                  <td>kapalanisamy</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-22</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-19" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16901" target="_blank">#16901</a></td>
+                  <td>Feature/AB#549677 Migrate PTID=2389</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-19</td>
+                  <td>2026-06-19</td>
+                  <td>2026-06-19</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-18" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16841" target="_blank">#16841</a></td>
+                  <td>Feature/AB#549017 Migration PTIDs 590 and 591</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-18</td>
+                  <td>2026-06-18</td>
+                  <td>2026-06-18</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-18" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16839" target="_blank">#16839</a></td>
+                  <td>Feature/AB#679340 groups new UI ptid 400</td>
+                  <td>shyamalabaskaran</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-18</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-18" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16838" target="_blank">#16838</a></td>
+                  <td>Feature/AB#679343 groups new UI ptid 1661</td>
+                  <td>shyamalabaskaran</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-18</td>
+                  <td>2026-06-18</td>
+                  <td>2026-06-18</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8325" target="_blank">#8325</a></td>
+                  <td>AB#579636 - File upload fails when the multibyte filename is long</td>
+                  <td>sathya-priyanga</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-16</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16808" target="_blank">#16808</a></td>
+                  <td>Feature/ab#679344 migrate ptid 1735 new groups UI</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-16</td>
+                  <td>2026-06-17</td>
+                  <td>2026-06-17</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16805" target="_blank">#16805</a></td>
+                  <td>AB#685171 - Updated Create Multiple Group Locale Strings</td>
+                  <td>jawakhar-n</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-16</td>
+                  <td>2026-06-19</td>
+                  <td>2026-06-19</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16799" target="_blank">#16799</a></td>
+                  <td>AB#671618 - Group Management Drag-and-Drop Locale Strings</td>
+                  <td>jayaprakash-venkatachalam</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-16</td>
+                  <td>2026-06-19</td>
+                  <td>2026-06-19</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-15" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16764" target="_blank">#16764</a></td>
+                  <td>AB#668784 - Fix WCAG 2.2 heading structure in Groups</td>
+                  <td>jayaprakash-venkatachalam</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-12" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16747" target="_blank">#16747</a></td>
+                  <td>Bugfix/AB#550330 Removed PTIDs 3432 and 300</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-12</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-12" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16746" target="_blank">#16746</a></td>
+                  <td>BugfixAB#682609 fix discussion close panel issue</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-12</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16723" target="_blank">#16723</a></td>
+                  <td>Feature/AB#679342 migrate ptid 826 groups new UI</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>2026-06-15</td>
+                  <td>2026-06-15</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16708" target="_blank">#16708</a></td>
+                  <td>Bugfix/ab 682609 fix reply button not clickable ptid 3437</td>
+                  <td>kapalanisamy</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>2026-06-12</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-10" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16680" target="_blank">#16680</a></td>
+                  <td>AB#671618 - refactor: extract MultiDragOverlay to components-react</td>
+                  <td>jayaprakash-venkatachalam</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-10</td>
+                  <td>2026-06-18</td>
+                  <td>2026-06-18</td>
+                  <td>Team ✓ Tech Lead ✓</td>
+                  <td>CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-09" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16638" target="_blank">#16638</a></td>
+                  <td>Feature/AB#548830 Wdio migration 239, 3112, and 2406</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>Team ✓ VS ✓</td>
+                  <td>Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16623" target="_blank">#16623</a></td>
+                  <td>AB#671569 - Allow Students to Self-enroll in Groups after Grading or Submission</td>
+                  <td>jayaprakash-venkatachalam</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16621" target="_blank">#16621</a></td>
+                  <td>Feature/AB#679337 PTID=17 groups new ui migration</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>Team ✓</td>
+                  <td>Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16592" target="_blank">#16592</a></td>
+                  <td>Bugfix/AB#549464 Remove PTID=2001</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-08</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-05" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16575" target="_blank">#16575</a></td>
+                  <td>Feature/AB#679339 Groups new UI PO methods and Migration PTID=399</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-05</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-08</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16541" target="_blank">#16541</a></td>
+                  <td>AB#681694 - Wire Multiple Groups Modal to Backend</td>
+                  <td>jawakhar-n</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓</td>
+                  <td>VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16540" target="_blank">#16540</a></td>
+                  <td>AB#661533 - Groups are not created as indicated in the automatic enrollment popup.</td>
+                  <td>jawakhar-n</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16532" target="_blank">#16532</a></td>
+                  <td>Bugfix/AB#682813 fix for PTID=4408</td>
+                  <td>kapalanisamy</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>2026-06-04</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-03" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16508" target="_blank">#16508</a></td>
+                  <td>Feature/AB#549013 wdio migration for PTIDs 589 and 1145</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-03</td>
+                  <td>2026-06-04</td>
+                  <td>2026-06-04</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8242" target="_blank">#8242</a></td>
+                  <td>AB#661533 - Groups are not created as indicated in the automatic enrollment popup.</td>
+                  <td>jawakhar-n</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16466" target="_blank">#16466</a></td>
+                  <td>Feature/AB#549090 Wdio migration for PTID=952</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-03</td>
+                  <td>2026-06-03</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-01" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8233" target="_blank">#8233</a></td>
+                  <td>AB#580398 - Group natural sort order</td>
+                  <td>sathya-priyanga</td>
+                  <td>Draft Learn</td>
+                  <td>2026-06-01</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-01" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16417" target="_blank">#16417</a></td>
+                  <td>Bugfix/AB#682031 Removed unused ptor codes - part1</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-02</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16365" target="_blank">#16365</a></td>
+                  <td>Feature/AB#549281 Wdio migration 1664, 2629, and 2634</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>2026-05-29</td>
+                  <td>2026-05-29</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16345" target="_blank">#16345</a></td>
+                  <td>AB#681506 - Button Group (split button) - BBUI version bump</td>
+                  <td>jawakhar-n</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>2026-05-29</td>
+                  <td>2026-05-29</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-25" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16272" target="_blank">#16272</a></td>
+                  <td>Feature/AB#549524 Migration for attempts-legacy cases</td>
+                  <td>kapalanisamy</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-25</td>
+                  <td>2026-05-25</td>
+                  <td>2026-05-25</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Shine">
+              <h2>Shine Team
+                <span class="team-summary">Total: 9 | Open: 5 | Draft: 1 | Merged: 3 | Closed: 0</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="open" data-created="2026-06-15" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16782" target="_blank">#16782</a></td>
+                  <td> AB#553306 Sanitise XSS payloads in Video Studio KC plain-text fields</td>
+                  <td>Saranya-Selvarasu</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓</td>
+                  <td>Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-15" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16768" target="_blank">#16768</a></td>
+                  <td>AB#553306 Sanitize XSS payloads in Video Studio KC plain-text fields</td>
+                  <td>Saranya-Selvarasu</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>-</td>
+                  <td>2026-06-15</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-11" data-changes="bbnkamper">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16728" target="_blank">#16728</a></td>
+                  <td>AB#471408 - XSS on Image URL parameter</td>
+                  <td>raksha-jana-kumaran</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓</td>
+                  <td>Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>bbnkamper</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-01" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16420" target="_blank">#16420</a></td>
+                  <td>AB#569467 - [Editor] Reflected XSS - React Document - Content Block - Image upload</td>
+                  <td>raksha-jana-kumaran</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-19</td>
+                  <td>2026-06-19</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-29" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16380" target="_blank">#16380</a></td>
+                  <td>AB#480057 - Sanitise LTI deep link title to prevent reflected XSS</td>
+                  <td>Saranya-Selvarasu</td>
+                  <td>Open Ultra</td>
+                  <td>2026-05-29</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-27" data-changes="alanacostablackboard">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16328" target="_blank">#16328</a></td>
+                  <td>AB#548145 - Fix XSS vulnerability in Gradebook feedback attachment RTE editor</td>
+                  <td>Muraliprasath-B</td>
+                  <td>Open Ultra</td>
+                  <td>2026-05-27</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓</td>
+                  <td>Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>alanacostablackboard</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8180" target="_blank">#8180</a></td>
+                  <td>AB#577514 - VDP - Server-side request forgery (SSRF) via DWR MashupDWRFacade</td>
+                  <td>raksha-jana-kumaran</td>
+                  <td>Open Learn</td>
+                  <td>2026-05-26</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>✓ Yes</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8177" target="_blank">#8177</a></td>
+                  <td>AB#680723 - Added class filter in NautilusView DWR for Java safe deserialisation</td>
+                  <td>Muraliprasath-B</td>
+                  <td>Merged Learn</td>
+                  <td>2026-05-26</td>
+                  <td>2026-05-29</td>
+                  <td>2026-05-29</td>
+                  <td>Team ✓</td>
+                  <td>Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8175" target="_blank">#8175</a></td>
+                  <td>AB#680723 - Added class filter in NautilusView DWR for Java safe deserialisation</td>
+                  <td>Muraliprasath-B</td>
+                  <td>Merged Learn</td>
+                  <td>2026-05-26</td>
+                  <td>2026-05-28</td>
+                  <td>2026-05-28</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Mamallas">
+              <h2>Mamallas Team
+                <span class="team-summary">Total: 8 | Open: 6 | Draft: 1 | Merged: 1 | Closed: 0</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="open" data-created="2026-06-10" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8297" target="_blank">#8297</a></td>
+                  <td>AB#567164 - Creating Ultra Course in &#x27;disabled&#x27; state results in broken course with no ROOT</td>
+                  <td>vijayanand-dev</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-10</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ VS ✓</td>
+                  <td>Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-10" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16686" target="_blank">#16686</a></td>
+                  <td>AB#675626 - Module Remains Locked After Release Conditions Are Met in Forced Sequence Courses</td>
+                  <td>mukilan-baskar-bb</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-10</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-10" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16681" target="_blank">#16681</a></td>
+                  <td>AB#683995 - Course Navigation Tabs Intermittently Missing After Self-Enrollment</td>
+                  <td>vijayanand-dev</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-10</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8286" target="_blank">#8286</a></td>
+                  <td>Bugfix/AB#679493 - Some tags use the sender locale instead of the recipient locale</td>
+                  <td>Logapriya-Mariappan</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-08</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ VS ✓</td>
+                  <td>Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8283" target="_blank">#8283</a></td>
+                  <td>Bugfix/AB#675813 - Multiple domains and announcement email text links</td>
+                  <td>Logapriya-Mariappan</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-08</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-05" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16567" target="_blank">#16567</a></td>
+                  <td>AB#682138 - Double quotation character saved as html code</td>
+                  <td>vijayanand-dev</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-05</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ VS ✓</td>
+                  <td>Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-01" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8230" target="_blank">#8230</a></td>
+                  <td>AB#678722- Scheduled Announcement Notification Task</td>
+                  <td>stamilmani</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-01</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ VS ✓</td>
+                  <td>Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8182" target="_blank">#8182</a></td>
+                  <td>AB#680427 - Fix students failed to receive digest email grading notifications</td>
+                  <td>meganathan-dhanamjayam</td>
+                  <td>Merged Learn</td>
+                  <td>2026-05-26</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-12</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Trailblazers">
+              <h2>Trailblazers Team
+                <span class="team-summary">Total: 10 | Open: 2 | Draft: 4 | Merged: 3 | Closed: 1</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="draft" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16794" target="_blank">#16794</a></td>
+                  <td>Feature/video studio automation</td>
+                  <td>krrishmk07</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-16</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16720" target="_blank">#16720</a></td>
+                  <td>video-studio version update</td>
+                  <td>BladeRipper</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>2026-06-19</td>
+                  <td>2026-06-19</td>
+                  <td>Team ✓ VS ✓</td>
+                  <td>Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-10" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8298" target="_blank">#8298</a></td>
+                  <td>AB#680224: video-studio quiz missing after granular copy.</td>
+                  <td>BladeRipper</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-10</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-09" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16631" target="_blank">#16631</a></td>
+                  <td>player freezes on second ad in ios sdk version bump</td>
+                  <td>krrishmk07</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-09</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-05" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16572" target="_blank">#16572</a></td>
+                  <td>AB#671136 Video Studio content taller than viewport - sdk version bump</td>
+                  <td>ssathyakumar</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-05</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-05" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16566" target="_blank">#16566</a></td>
+                  <td>player controls improvement sdk version bump</td>
+                  <td>ssathyakumar</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-05</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-05" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16560" target="_blank">#16560</a></td>
+                  <td>sdk version update</td>
+                  <td>ARUNKUMAR-BHARATHI</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-05</td>
+                  <td>2026-06-11</td>
+                  <td>2026-06-11</td>
+                  <td>CES ✓</td>
+                  <td>Team Approval, Tech Lead Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16474" target="_blank">#16474</a></td>
+                  <td>Add bb-video-studio-sdk to npmPreApprovedPackages and update version</td>
+                  <td>ssathyakumar</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-02</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16449" target="_blank">#16449</a></td>
+                  <td>video studio version bump</td>
+                  <td>BladeRipper</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>2026-06-03</td>
+                  <td>Team ✓ VS ✓</td>
+                  <td>Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-01" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16413" target="_blank">#16413</a></td>
+                  <td>AB#529650 - Video Studio and adaptive release visibility</td>
+                  <td>sdash1908</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-01</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ VS ✓</td>
+                  <td>Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Sparkle">
+              <h2>Sparkle Team
+                <span class="team-summary">Total: 13 | Open: 1 | Draft: 9 | Merged: 3 | Closed: 0</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="draft" data-created="2026-06-18" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8345" target="_blank">#8345</a></td>
+                  <td>Initial commit for Spring upgrade logout issue</td>
+                  <td>Praveenkarunanithi</td>
+                  <td>Draft Learn</td>
+                  <td>2026-06-18</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8324" target="_blank">#8324</a></td>
+                  <td>Feature/ab 680514 spring 6.2 upgrade branch testing</td>
+                  <td>Praveenkarunanithi</td>
+                  <td>Draft Learn</td>
+                  <td>2026-06-16</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8303" target="_blank">#8303</a></td>
+                  <td>Feature/combined ab 2631172 2219515 v5</td>
+                  <td>kingrosegershom</td>
+                  <td>Draft Learn</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-10" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8299" target="_blank">#8299</a></td>
+                  <td>Feature/combined ab 2631172 2219515 v4</td>
+                  <td>kingrosegershom</td>
+                  <td>Draft Learn</td>
+                  <td>2026-06-10</td>
+                  <td>-</td>
+                  <td>2026-06-11</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-05" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8272" target="_blank">#8272</a></td>
+                  <td>Upgrade Tomcat from 9.0.113 to 9.0.118</td>
+                  <td>obedlivi24</td>
+                  <td>Draft Learn</td>
+                  <td>2026-06-05</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-05" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8268" target="_blank">#8268</a></td>
+                  <td>AB#370890 Fix reflected XSS via cancelGradeUrl parameter in discussion board grading</td>
+                  <td>obedlivi24</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-05</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-05" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8267" target="_blank">#8267</a></td>
+                  <td>Feature/combined ab 2631172 2219515 v3</td>
+                  <td>kingrosegershom</td>
+                  <td>Draft Learn</td>
+                  <td>2026-06-05</td>
+                  <td>-</td>
+                  <td>2026-06-11</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8244" target="_blank">#8244</a></td>
+                  <td>AB#682307 Implement mandatory ultra UIAs with status reporting in Jenkins pipeline</td>
+                  <td>Kala1304</td>
+                  <td>Draft Learn</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-29" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16391" target="_blank">#16391</a></td>
+                  <td>Bugfix/AB#680201 : New gradebook grid view Migrate PTID -3833</td>
+                  <td>DevikaMRAnthology</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-29</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-01</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8206" target="_blank">#8206</a></td>
+                  <td>Feature/combined ab 2631172 2219515 v2</td>
+                  <td>kingrosegershom</td>
+                  <td>Draft Learn</td>
+                  <td>2026-05-28</td>
+                  <td>-</td>
+                  <td>2026-06-05</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16349" target="_blank">#16349</a></td>
+                  <td>Bugfix/AB#680199 AB#680200 : New gradebook grid view Migrate PTIDs - 3994 and 4021</td>
+                  <td>DevikaMRAnthology</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>2026-05-29</td>
+                  <td>2026-05-29</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16341" target="_blank">#16341</a></td>
+                  <td>Feature/ab 681498 automatic ado ticket creation for non main jenkins job</td>
+                  <td>Kala1304</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-01</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-25" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16270" target="_blank">#16270</a></td>
+                  <td>Bugfix/AB#680200 : New gradebook grid view Migrate PTIDs - 3994 and 4021</td>
+                  <td>DevikaMRAnthology</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-05-25</td>
+                  <td>-</td>
+                  <td>2026-05-28</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Madras">
+              <h2>Madras Team
+                <span class="team-summary">Total: 17 | Open: 2 | Draft: 6 | Merged: 9 | Closed: 0</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="open" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8284" target="_blank">#8284</a></td>
+                  <td>bugfix/AB#680997 Autoassign Groups are creating odd groupings</td>
+                  <td>Monika-BB</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-08</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ VS ✓</td>
+                  <td>Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16619" target="_blank">#16619</a></td>
+                  <td>Bugfix/AB#681082 flaky test fix - PTID-410</td>
+                  <td>DineshRajamani-BB</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16594" target="_blank">#16594</a></td>
+                  <td>AB#683419 : Remove instructor dashboard feature flag - Reversal - Backport - release/4000.19</td>
+                  <td>HariVenkataramanan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16593" target="_blank">#16593</a></td>
+                  <td>AB#683419 : Remove instructor dashboard feature flag - Reversal - Backport - release/4000.17</td>
+                  <td>HariVenkataramanan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-05" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16557" target="_blank">#16557</a></td>
+                  <td>AB#683419 : Remove instructor dashboard feature flag - Reversal</td>
+                  <td>HariVenkataramanan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-05</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16462" target="_blank">#16462</a></td>
+                  <td>Bugfix/AB#574077 flaky test fix - PTID-5005</td>
+                  <td>HariharanMohanakrishnan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16447" target="_blank">#16447</a></td>
+                  <td>feature/AB#682021 Automations M4.5 - Visual update to the editable message</td>
+                  <td>Monika-BB</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-01" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16424" target="_blank">#16424</a></td>
+                  <td>AB#680189 Add UIA tests for Observer Announcements tab (PTIDs 681501–681505)</td>
+                  <td>DineshRajamani-BB</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-08</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16370" target="_blank">#16370</a></td>
+                  <td>Bugfix/AB#578339 flaky test fix - PTID-4335</td>
+                  <td>HariharanMohanakrishnan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-02</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16354" target="_blank">#16354</a></td>
+                  <td>Bugfix/AB#577992 flaky test fix - PTID-4387</td>
+                  <td>HariharanMohanakrishnan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-01</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16352" target="_blank">#16352</a></td>
+                  <td>fix: PTID=4387 ReleaseConditionsPeek.closePanel() timeout AB#577992</td>
+                  <td>HariharanMohanakrishnan</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>-</td>
+                  <td>2026-05-28</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8186" target="_blank">#8186</a></td>
+                  <td>AB#578531 Automations M4.3 — Configurable From Name - SendMessage sender resolution</td>
+                  <td>HariVenkataramanan</td>
+                  <td>Open Learn</td>
+                  <td>2026-05-26</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8184" target="_blank">#8184</a></td>
+                  <td>Feature/ab 578531 configurable from learn - send message changes</td>
+                  <td>HariVenkataramanan</td>
+                  <td>Draft Learn</td>
+                  <td>2026-05-26</td>
+                  <td>-</td>
+                  <td>2026-05-26</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16307" target="_blank">#16307</a></td>
+                  <td>AB#578319 - wait for modal backdrop before clicking course nav item (PTID=2467)</td>
+                  <td>HariharanMohanakrishnan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-26</td>
+                  <td>2026-05-28</td>
+                  <td>2026-05-28</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-25" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16290" target="_blank">#16290</a></td>
+                  <td>AB#578339 - increase waitForClickable timeout for contentItemTitle (PTID=4335)</td>
+                  <td>HariharanMohanakrishnan</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-05-25</td>
+                  <td>-</td>
+                  <td>2026-05-28</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-25" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16282" target="_blank">#16282</a></td>
+                  <td>AB#605235 wait for document save to complete before closing panel — PTID=4398 </td>
+                  <td>HariharanMohanakrishnan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-25</td>
+                  <td>2026-05-26</td>
+                  <td>2026-05-26</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-25" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16273" target="_blank">#16273</a></td>
+                  <td>fix(uia): fix PTID=4060 flaky failure — wait for UEF GroupCollabTool portal before clicking [AB#605420]</td>
+                  <td>HariharanMohanakrishnan</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-05-25</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Triton">
+              <h2>Triton Team
+                <span class="team-summary">Total: 28 | Open: 10 | Draft: 12 | Merged: 6 | Closed: 0</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="draft" data-created="2026-06-19" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16924" target="_blank">#16924</a></td>
+                  <td>Bugfix - AB#685628 - Fix DOCX Files Open in Viewer Instead of Download for View Only Mode</td>
+                  <td>RajkumarRajendran-BB</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-19</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-17" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16830" target="_blank">#16830</a></td>
+                  <td>Feature/AB#679153 - Radio button to match Rubric AssignmentPoints Implementation.</td>
+                  <td>abinesh-bb</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-17</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-17" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16829" target="_blank">#16829</a></td>
+                  <td>Feature/AB#679153 -  Radio button to match Rubric AssignmentPoints UI</td>
+                  <td>abinesh-bb</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-17</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-17" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16826" target="_blank">#16826</a></td>
+                  <td>Feature/AB#685506-exception-uia</td>
+                  <td>SanjayKumar-bb</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-17</td>
+                  <td>2026-06-18</td>
+                  <td>2026-06-18</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-17" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16820" target="_blank">#16820</a></td>
+                  <td>Feature/AB#679153 - [3/3] Assessment, Journal &amp; Discussion Settings Rubric Integration</td>
+                  <td>RajkumarRajendran-BB</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-17</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-17" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16819" target="_blank">#16819</a></td>
+                  <td>Feature/AB#679153 - [2/3] Add Rubric Button Component</td>
+                  <td>RajkumarRajendran-BB</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-17</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-17" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16818" target="_blank">#16818</a></td>
+                  <td>Feature/AB#679153 - [1/3] Close &amp; Save Changes for Rubric Management Panel</td>
+                  <td>RajkumarRajendran-BB</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-17</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-15" data-changes="kavinrajlr">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16780" target="_blank">#16780</a></td>
+                  <td>Feature - AB#684747 - Rubric type filter — Filter rubrics by rubric type in management panel</td>
+                  <td>RajkumarRajendran-BB</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>kavinrajlr</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-15" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16774" target="_blank">#16774</a></td>
+                  <td>Feature/AB#682880 Uia student view</td>
+                  <td>SanjayKumar-bb</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>2026-06-18</td>
+                  <td>2026-06-18</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-13" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16758" target="_blank">#16758</a></td>
+                  <td>feature/AB-671711-common rubric export banner</td>
+                  <td>abinesh-bb</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-13</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-12" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16741" target="_blank">#16741</a></td>
+                  <td>Feature - AB#684438 - UI import banner hook</td>
+                  <td>NaveenkumarAlagesan</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-12</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓</td>
+                  <td>Team Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-12" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16740" target="_blank">#16740</a></td>
+                  <td>feature/AB-671711-common rubric export banner </td>
+                  <td>abinesh-bb</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-12</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-09" data-changes="kavinrajlr">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8289" target="_blank">#8289</a></td>
+                  <td>Feature - AB#682818 - Rubric association possible point</td>
+                  <td>RajkumarRajendran-BB</td>
+                  <td>Open Learn</td>
+                  <td>2026-06-09</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓</td>
+                  <td>CES Approval, VS Approval</td>
+                  <td>kavinrajlr</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16583" target="_blank">#16583</a></td>
+                  <td>Feature/ab 679153 radio button for possible points</td>
+                  <td>abinesh-bb</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>-</td>
+                  <td>2026-06-22</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16537" target="_blank">#16537</a></td>
+                  <td>Feature -AB#679153 - Add Rubric Button in Assessment, Journal, Discussion settings</td>
+                  <td>abinesh-bb</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>2026-06-19</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16467" target="_blank">#16467</a></td>
+                  <td>Feature/AB#568612 uia 4760</td>
+                  <td>SanjayKumar-bb</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-08</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16458" target="_blank">#16458</a></td>
+                  <td>Feature/AB#576154 uia 2953</td>
+                  <td>SanjayKumar-bb</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-08</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-30" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16406" target="_blank">#16406</a></td>
+                  <td>Feature - AB#681993 - Rubric management table data</td>
+                  <td>NaveenkumarAlagesan</td>
+                  <td>Open Ultra</td>
+                  <td>2026-05-30</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>✓ Yes</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-29" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16399" target="_blank">#16399</a></td>
+                  <td>Feature - AB#681909 - Course Rubric Fetch API Client</td>
+                  <td>NaveenkumarAlagesan</td>
+                  <td>Open Ultra</td>
+                  <td>2026-05-29</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>✓ Yes</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-29" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16398" target="_blank">#16398</a></td>
+                  <td>Feature - AB#681889 - Collapsible button with tooltip component</td>
+                  <td>NaveenkumarAlagesan</td>
+                  <td>Open Ultra</td>
+                  <td>2026-05-29</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>✓ Yes</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-29" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16394" target="_blank">#16394</a></td>
+                  <td>Feature - AB#681868 - L10N String for course rubrics</td>
+                  <td>NaveenkumarAlagesan</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-29</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-01</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8209" target="_blank">#8209</a></td>
+                  <td>feature - AB#668941 - Implement Rubric search: textSearch for title LIKE, typeFilter for exact type filtering</td>
+                  <td>RajkumarRajendran-BB</td>
+                  <td>Open Learn</td>
+                  <td>2026-05-28</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>✓ Yes</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8205" target="_blank">#8205</a></td>
+                  <td>Feature - AB#681500 - Show answer option feedback only for the selected answers to the student</td>
+                  <td>SrinivasanPalan</td>
+                  <td>Merged Learn</td>
+                  <td>2026-05-28</td>
+                  <td>2026-06-11</td>
+                  <td>2026-06-11</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16351" target="_blank">#16351</a></td>
+                  <td>Bugfix/ab 668599 spurious radio selected t/f question=duplicate</td>
+                  <td>abinesh-bb</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-27" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16327" target="_blank">#16327</a></td>
+                  <td>Feature - AB#681274 - Course rubric fetch hook</td>
+                  <td>NaveenkumarAlagesan</td>
+                  <td>Open Ultra</td>
+                  <td>2026-05-27</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>✓ Yes</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16302" target="_blank">#16302</a></td>
+                  <td>Feature - AB#680885 - Rubric import banner hooks</td>
+                  <td>NaveenkumarAlagesan</td>
+                  <td>Open Ultra</td>
+                  <td>2026-05-26</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓</td>
+                  <td>Team Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-25" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16291" target="_blank">#16291</a></td>
+                  <td>Feature - AB#675729 - Rubrics search, pagination, and view to rubric management</td>
+                  <td>NaveenkumarAlagesan</td>
+                  <td>Open Ultra</td>
+                  <td>2026-05-25</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓</td>
+                  <td>CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-05-25" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16289" target="_blank">#16289</a></td>
+                  <td>Feature - AB#671697 - Import Rubric API Configuration</td>
+                  <td>NaveenkumarAlagesan</td>
+                  <td>Open Ultra</td>
+                  <td>2026-05-25</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>✓ Yes</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Helios">
+              <h2>Helios Team
+                <span class="team-summary">Total: 4 | Open: 0 | Draft: 3 | Merged: 1 | Closed: 0</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="draft" data-created="2026-06-18" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/learn/pull/8341" target="_blank">#8341</a></td>
+                  <td>AB#675678-Implement guest user handling for TDM catalog redirection</td>
+                  <td>Ashish-Anthology</td>
+                  <td>Draft Learn</td>
+                  <td>2026-06-18</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-09" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16624" target="_blank">#16624</a></td>
+                  <td>Bugfix/AB#683570 update bb-foundation-extensions to 2.1.2</td>
+                  <td>dilannayak</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-09</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16551" target="_blank">#16551</a></td>
+                  <td>Feature/AB#683155 Revert Home Exit Landing Page for Courses and Organizations</td>
+                  <td>ketan-D-Jangale</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>2026-06-06</td>
+                  <td>2026-06-06</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-03" data-changes="sathyamoorthy612, priceld, stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16513" target="_blank">#16513</a></td>
+                  <td>Feature/AB#682874 Quill to tiptap RTE migration Message</td>
+                  <td>ketan-D-Jangale</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-03</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓</td>
+                  <td>Team Approval, CES Approval, VS Approval</td>
+                  <td>SathyaMoorthy612, priceld, stormojm</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Krypton">
+              <h2>Krypton Team
+                <span class="team-summary">Total: 33 | Open: 6 | Draft: 7 | Merged: 16 | Closed: 4</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="open" data-created="2026-06-19" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16911" target="_blank">#16911</a></td>
+                  <td>Bugfix / Not able to access contents from To do panel in base courses / organizations</td>
+                  <td>rakshithrrr</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-19</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-19" data-changes="dsoto-bb">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16910" target="_blank">#16910</a></td>
+                  <td>AB#681423: Long text breadcrumbs restricted to single line</td>
+                  <td>vinayak-anthology</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-19</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>dsoto-bb</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-19" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16903" target="_blank">#16903</a></td>
+                  <td>AB#685380 Resets stale disGroupId on TOC navigation</td>
+                  <td>SoumyAlguje</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-19</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-19" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16902" target="_blank">#16902</a></td>
+                  <td>AB#681423: Long text breadcrumbs restricted to single line</td>
+                  <td>vinayak-anthology</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-19</td>
+                  <td>-</td>
+                  <td>2026-06-19</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-18" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16859" target="_blank">#16859</a></td>
+                  <td>AB#681423: Long text breadcrumbs restricted to single line</td>
+                  <td>vinayak-anthology</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-18</td>
+                  <td>-</td>
+                  <td>2026-06-19</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-18" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16836" target="_blank">#16836</a></td>
+                  <td>AB#684271 - Fix redirect to converted document route and update WDIO selector(PTID=1460)</td>
+                  <td>sanjay-senthil-s</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-18</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-17" data-changes="sathyamoorthy612">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16827" target="_blank">#16827</a></td>
+                  <td>Inconsistent navigation issue under LM specific to SCORM and Test</td>
+                  <td>Shivakumar-Metre</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-17</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>SathyaMoorthy612</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-17" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16817" target="_blank">#16817</a></td>
+                  <td>System Navigation M2 - Page State Management</td>
+                  <td>rakshithrrr</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-17</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16802" target="_blank">#16802</a></td>
+                  <td>Bugfix / Blank page appears when navigating between 2 discussions inside TOC</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-16</td>
+                  <td>2026-06-17</td>
+                  <td>2026-06-17</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16801" target="_blank">#16801</a></td>
+                  <td>testing</td>
+                  <td>vinayak-anthology</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-16</td>
+                  <td>-</td>
+                  <td>2026-06-19</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-16" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16796" target="_blank">#16796</a></td>
+                  <td>New Focus Management Property for Full pages - System Navigation M2</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-16</td>
+                  <td>2026-06-17</td>
+                  <td>2026-06-17</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-15" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16778" target="_blank">#16778</a></td>
+                  <td>testing</td>
+                  <td>vinayak-anthology</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>-</td>
+                  <td>2026-06-16</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-12" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16735" target="_blank">#16735</a></td>
+                  <td>Add navigation control / close content button to page headers in small screens</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-15</td>
+                  <td>2026-06-15</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-11" data-changes="sathyamoorthy612">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16727" target="_blank">#16727</a></td>
+                  <td>AB#682851: Inconsistent navigation issue under LM specific to SCORM and Test</td>
+                  <td>Shivakumar-Metre</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>2026-06-22</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>SathyaMoorthy612</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16725" target="_blank">#16725</a></td>
+                  <td>AB#682851: Inconsistent navigation issue under LM specific to SCORM and Test</td>
+                  <td>Shivakumar-Metre</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>2026-06-11</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-10" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16678" target="_blank">#16678</a></td>
+                  <td>Add LoR Contents route request handlers - System Navigation M2</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-10</td>
+                  <td>2026-06-11</td>
+                  <td>2026-06-11</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-10" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16666" target="_blank">#16666</a></td>
+                  <td>AB#680969: Fix breadcrumb focus highlight during keyboard navigation</td>
+                  <td>Shivakumar-Metre</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-10</td>
+                  <td>2026-06-11</td>
+                  <td>2026-06-11</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16618" target="_blank">#16618</a></td>
+                  <td>Fix: Assessment max points not updating after extra credit save (PTID=3864)</td>
+                  <td>sanjay-senthil-s</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-10</td>
+                  <td>2026-06-10</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16613" target="_blank">#16613</a></td>
+                  <td>AB#682192 Journals | Adds support for breadcrumb content item names</td>
+                  <td>SoumyAlguje</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-08" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16587" target="_blank">#16587</a></td>
+                  <td>fix:  Remove course id param from preview file route</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-09</td>
+                  <td>2026-06-09</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16544" target="_blank">#16544</a></td>
+                  <td>Refactor Assessment Routes with Shared Resolves - System Navigation M2</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>2026-06-08</td>
+                  <td>2026-06-08</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16526" target="_blank">#16526</a></td>
+                  <td>AB#680969: Fix breadcrumb focus highlight during keyboard navigation</td>
+                  <td>Shivakumar-Metre</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>2026-06-10</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-03" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16503" target="_blank">#16503</a></td>
+                  <td>AB#682926 Discussion | Show breadcrumbs while creation</td>
+                  <td>SoumyAlguje</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-03</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-02" data-changes="stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16460" target="_blank">#16460</a></td>
+                  <td>AB#680892 Fix: prevent question text loss when clicking exit button on assessment canvas</td>
+                  <td>sanjay-senthil-s</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>stormojm</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16443" target="_blank">#16443</a></td>
+                  <td>Add Page Standard Header  - System Navigation M2 </td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-03</td>
+                  <td>2026-06-03</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-02" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16442" target="_blank">#16442</a></td>
+                  <td>Add Gradebook Item l2 state - System Navigation M2</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-03</td>
+                  <td>2026-06-03</td>
+                  <td>Team ✓ Tech Lead ✓ VS ✓</td>
+                  <td>CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-01" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16421" target="_blank">#16421</a></td>
+                  <td>Add content page header for full pages -  System Navigation M2</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-01</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-02</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-05-29" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16393" target="_blank">#16393</a></td>
+                  <td>AB#682192 Journals | Adds support for breadcrumb content item names </td>
+                  <td>SoumyAlguje</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-05-29</td>
+                  <td>-</td>
+                  <td>2026-06-09</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16360" target="_blank">#16360</a></td>
+                  <td>Add course and content breadcrumbs - System Navigation M2</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>2026-05-29</td>
+                  <td>2026-05-29</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-28" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16348" target="_blank">#16348</a></td>
+                  <td>Update Panel View to support for full pages - System Navigation M2</td>
+                  <td>rakshithrrr</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>2026-05-28</td>
+                  <td>2026-05-28</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-05-28" data-changes="amyers-blackboard, rakshithrrr, stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16339" target="_blank">#16339</a></td>
+                  <td>AB#574310 Add breadcrumbs support for discussion and journal content items</td>
+                  <td>SoumyAlguje</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-05-28</td>
+                  <td>-</td>
+                  <td>2026-06-02</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>amyers-blackboard, rakshithrrr, stormojm</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16300" target="_blank">#16300</a></td>
+                  <td>AB#680437 Fix (PTID=1457) - User unable to redirect submission page using direct URL</td>
+                  <td>sanjay-senthil-s</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-26</td>
+                  <td>2026-05-29</td>
+                  <td>2026-05-29</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16297" target="_blank">#16297</a></td>
+                  <td>AB#680537 Skip Link Initial Focus Issue </td>
+                  <td>SoumyAlguje</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-26</td>
+                  <td>2026-06-02</td>
+                  <td>2026-06-02</td>
+                  <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>All approved ✓</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+            <section class="team-section" data-team="Radon">
+              <h2>Radon Team
+                <span class="team-summary">Total: 17 | Open: 5 | Draft: 5 | Merged: 5 | Closed: 2</span>
+              </h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    
+                <tr data-state="open" data-created="2026-06-18" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16854" target="_blank">#16854</a></td>
+                  <td>Fix inconsitent popup</td>
+                  <td>abhishekp-cc</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-18</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-15" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16785" target="_blank">#16785</a></td>
+                  <td>AB#683433: Preserve gradebook grid scroll via shared useScrollToItem </td>
+                  <td>abhishekp-cc</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-15" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16776" target="_blank">#16776</a></td>
+                  <td>AB#684301 UIA Fix</td>
+                  <td>shivakumark0203</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-15</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-12" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16742" target="_blank">#16742</a></td>
+                  <td>Fix course outline glitch</td>
+                  <td>abhishekp-cc</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-12</td>
+                  <td>2026-06-16</td>
+                  <td>2026-06-16</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16726" target="_blank">#16726</a></td>
+                  <td>AB#681093: Ensure correct browser back button behavior on Flex Grading page</td>
+                  <td>vivek79799</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>CES ✓ VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16724" target="_blank">#16724</a></td>
+                  <td>AB#684301 UIA Failure fix for content navigator refactoring</td>
+                  <td>shivakumark0203</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>2026-06-15</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-06-11" data-changes="stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16715" target="_blank">#16715</a></td>
+                  <td>AB#675757: Old gradebook grid state preservation</td>
+                  <td>abhishekp-cc</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>2026-06-17</td>
+                  <td>Tech Lead ✓ VS ✓</td>
+                  <td>Team Approval, CES Approval</td>
+                  <td>stormojm</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16706" target="_blank">#16706</a></td>
+                  <td>Preserve old gradebook grid scroll state</td>
+                  <td>abhishekp-cc</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>-</td>
+                  <td>2026-06-11</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-06-11" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16704" target="_blank">#16704</a></td>
+                  <td>AB#573880: Remove course switcher M2 feature flag usages</td>
+                  <td>SathyaMoorthy612</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-06-11</td>
+                  <td>2026-06-15</td>
+                  <td>2026-06-15</td>
+                  <td>CES ✓ VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-10" data-changes="sathyamoorthy612, rakshithrrr">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16677" target="_blank">#16677</a></td>
+                  <td>AB#681093: Ensure correct browser back button behavior on Flex Grading page</td>
+                  <td>vivek79799</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-10</td>
+                  <td>-</td>
+                  <td>2026-06-11</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>SathyaMoorthy612, rakshithrrr</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="draft" data-created="2026-06-10" data-changes="sathyamoorthy612">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16665" target="_blank">#16665</a></td>
+                  <td>Bugfix/AB#682896 - Fix Enroll Icon Not Visible After Closing Enroll Panel on Roster Page</td>
+                  <td>shashikr98</td>
+                  <td>Draft Ultra</td>
+                  <td>2026-06-10</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>None yet</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+                  <td>SathyaMoorthy612</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-08" data-changes="stormojm">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16589" target="_blank">#16589</a></td>
+                  <td>AB#675674-Course calendar state preservation system nav</td>
+                  <td>Rakshitha-a22</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-08</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>CES ✓ VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval</td>
+                  <td>stormojm</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="open" data-created="2026-06-04" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16546" target="_blank">#16546</a></td>
+                  <td>AB#580975 System Nav M2 — remove dev workarounds and fix WDIO selectors</td>
+                  <td>shivakumark0203</td>
+                  <td>Open Ultra</td>
+                  <td>2026-06-04</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>Team ✓ CES ✓ VS ✓</td>
+                  <td>Tech Lead Approval</td>
+                  <td>-</td>
+                  <td>✗ No</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-29" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16397" target="_blank">#16397</a></td>
+                  <td>Pass soft link content id as content prop for engagement view</td>
+                  <td>SathyaMoorthy612</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-29</td>
+                  <td>2026-05-29</td>
+                  <td>2026-05-29</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-26" data-changes="johntrianat">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16303" target="_blank">#16303</a></td>
+                  <td>AB#679053: Add toc expand buttons to TOC content view wrappers</td>
+                  <td>SathyaMoorthy612</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-26</td>
+                  <td>2026-05-28</td>
+                  <td>2026-05-28</td>
+                  <td>CES ✓ VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval</td>
+                  <td>johntrianat</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="closed" data-created="2026-05-26" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16298" target="_blank">#16298</a></td>
+                  <td>AB#675674-Course calendar state persist</td>
+                  <td>Rakshitha-a22</td>
+                  <td>Closed Ultra</td>
+                  <td>2026-05-26</td>
+                  <td>-</td>
+                  <td>2026-06-04</td>
+                  <td>VS ✓</td>
+                  <td>Team Approval, Tech Lead Approval, CES Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                <tr data-state="merged" data-created="2026-05-25" data-changes="-">
+                  <td><a href="https://github.com/blackboard-learn/ultra/pull/16275" target="_blank">#16275</a></td>
+                  <td>AB#671415: Restore scroll position when returning to course outline</td>
+                  <td>abhishekp-cc</td>
+                  <td>Merged Ultra</td>
+                  <td>2026-05-25</td>
+                  <td>2026-06-05</td>
+                  <td>2026-06-05</td>
+                  <td>Tech Lead ✓ CES ✓ VS ✓</td>
+                  <td>Team Approval</td>
+                  <td>-</td>
+                  <td>-</td>
+                </tr>
+                
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            
+
+    <div class="footer">Approval legend: Team ✓, Tech Lead ✓, CES ✓, VS ✓</div>
+  </div>
+
+<script>
+(function () {
+  const refreshBtn = document.getElementById('refreshBtn');
+  const teamFilter = document.getElementById('teamFilter');
+  const stateFilter = document.getElementById('stateFilter');
+  const changesFilter = document.getElementById('changesFilter');
+  const daysFilter = document.getElementById('daysFilter');
+
+  const sections = Array.from(document.querySelectorAll('.team-section'));
+
+  function parseDateOnly(str) {
+    if (!str) return null;
+    const d = new Date(str + 'T00:00:00');
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function isWithinRange(created, days) {
+    if (!created) return false;
+    const createdDate = parseDateOnly(created);
+    if (!createdDate) return false;
+
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    from.setDate(from.getDate() - days);
+    return createdDate >= from;
+  }
+
+  function applyFilters() {
+    const selectedTeam = teamFilter.value;
+    const selectedState = stateFilter.value;
+    const changesQuery = (changesFilter.value || '').trim().toLowerCase();
+    const days = Number(daysFilter.value || '30');
+
+    sections.forEach((section) => {
+      const teamName = section.getAttribute('data-team');
+      const showSection = selectedTeam === 'ALL' || teamName === selectedTeam;
+      section.style.display = showSection ? '' : 'none';
+      if (!showSection) return;
+
+      const rows = Array.from(section.querySelectorAll('tbody tr'));
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        const state = row.getAttribute('data-state') || '';
+        const created = row.getAttribute('data-created') || '';
+        const changes = row.getAttribute('data-changes') || '';
+
+        if (row.children.length === 1) {
+          row.style.display = 'none';
+          return;
+        }
+
+        const stateOk = selectedState === 'ALL' || state === selectedState;
+        const daysOk = isWithinRange(created, days);
+        const changesOk = !changesQuery || changes.includes(changesQuery);
+        const showRow = stateOk && daysOk && changesOk;
+
+        row.style.display = showRow ? '' : 'none';
+        if (showRow) visibleCount += 1;
+      });
+
+      let empty = section.querySelector('tbody tr.__empty');
+      if (!empty) {
+        empty = document.createElement('tr');
+        empty.className = '__empty';
+        empty.innerHTML = '<td colspan="11">No PRs match the current filters.</td>';
+        section.querySelector('tbody').appendChild(empty);
+      }
+      empty.style.display = visibleCount === 0 ? '' : 'none';
+    });
+  }
+
+  [teamFilter, stateFilter, changesFilter, daysFilter].forEach((el) => {
+    el.addEventListener('input', applyFilters);
+    el.addEventListener('change', applyFilters);
+  });
+
+  refreshBtn.addEventListener('click', () => {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Refreshing...';
+    const u = new URL(window.location.href);
+    u.searchParams.set('refresh', String(Date.now()));
+    window.location.href = u.toString();
+  });
+
+  applyFilters();
+})();
+</script>
+</body>
+</html>
