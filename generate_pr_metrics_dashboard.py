@@ -182,6 +182,13 @@ def build_approval_strings(labels: Iterable[str]) -> Tuple[str, str]:
     return approvals, pending
 
 
+def extract_epic_id(title: str) -> str:
+    """Extract Epic/Bug ID (AB#XXXXX) from PR title."""
+    import re
+    match = re.search(r'AB#\d+', title)
+    return match.group(0) if match else "-"
+
+
 def latest_changes_requested_by(reviews: List[dict]) -> str:
     latest_by_user: Dict[str, str] = {}
     for r in reviews:
@@ -297,10 +304,11 @@ def render_dashboard(team_to_rows: Dict[str, List[PullRow]], generated_at: str, 
             state_lower = r.state.lower()
             changes_data = r.changes_requested_by.lower().replace('"', "")
 
+            epic_id = extract_epic_id(r.title)
             table_rows.append(
                 f"""
                 <tr data-state=\"{state_lower}\" data-created=\"{r.created_at}\" data-changes=\"{changes_data}\">
-                  <td><a href=\"{html.escape(r.url)}\" target=\"_blank\">#{r.number}</a></td>
+                  <td><a href=\"{html.escape(r.url)}\" target=\"_blank\">#{r.number}</a><br/><small style=\"color:#999;font-size:11px;font-weight:normal\">{epic_id}</small></td>
                   <td>{title}</td>
                   <td>{author}</td>
                   <td>{r.state} {repo_short}</td>
