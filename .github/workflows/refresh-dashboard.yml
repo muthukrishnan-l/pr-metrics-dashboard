@@ -1,0 +1,51 @@
+name: Refresh PR Metrics Dashboard
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate token secret
+        env:
+          DASHBOARD_GH_TOKEN: ${{ secrets.DASHBOARD_GH_TOKEN }}
+        run: |
+          if [ -z "$DASHBOARD_GH_TOKEN" ]; then
+            echo "DASHBOARD_GH_TOKEN secret is required to read blackboard-learn private repositories."
+            exit 1
+          fi
+
+      - name: Generate dashboard
+        env:
+          GITHUB_TOKEN: ${{ secrets.DASHBOARD_GH_TOKEN }}
+          DASHBOARD_DAYS: "30"
+          DASHBOARD_OUTPUT: docs/index.html
+        run: python generate_pr_metrics_dashboard.py
+
+      - name: Commit and push updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html docs/.nojekyll
+
+          if git diff --cached --quiet; then
+            echo "No dashboard changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: refresh PR metrics dashboard"
+          git push
