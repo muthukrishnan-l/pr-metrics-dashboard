@@ -640,7 +640,7 @@ def main() -> int:
   days = int(os.getenv("DASHBOARD_DAYS", str(DEFAULT_DAYS)))
   output_path = os.getenv("DASHBOARD_OUTPUT", DEFAULT_OUTPUT_PATH)
 
-  now_utc = dt.datetime.now(dt.UTC)
+  now_utc = dt.datetime.now(dt.timezone.utc)
   since_date = (now_utc - dt.timedelta(days=days)).strftime("%Y-%m-%d")
   generated_at = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
 
