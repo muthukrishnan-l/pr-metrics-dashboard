@@ -215,9 +215,10 @@ def latest_changes_requested_by(reviews: List[dict]) -> str:
     return ", ".join(requesters) if requesters else "-"
 
 
-def fetch_team_rows(client: GitHubClient, team: str, since: str) -> List[PullRow]:
+def fetch_team_rows(client: GitHubClient, team: str, since: str) -> Tuple[List[PullRow], int]:
     rows: List[PullRow] = []
     seen: set[Tuple[str, int]] = set()
+    fetch_error_count = 0
     team_label = f"pd-team-{team.lower()}"
     since_date = dt.datetime.strptime(since, "%Y-%m-%d").date()
 
@@ -225,6 +226,7 @@ def fetch_team_rows(client: GitHubClient, team: str, since: str) -> List[PullRow
         try:
             items = client.get_prs(repo, since=since)
         except Exception as exc:
+            fetch_error_count += 1
             print(f"Warning: failed to fetch PR list for {team} in {repo}: {exc}")
             continue
 
@@ -286,7 +288,7 @@ def fetch_team_rows(client: GitHubClient, team: str, since: str) -> List[PullRow
             time.sleep(0.12)
 
     rows.sort(key=lambda x: x.created_at, reverse=True)
-    return rows
+    return rows, fetch_error_count
 
 
 def summarize(rows: List[PullRow]) -> Dict[str, int]:
@@ -647,9 +649,12 @@ def main() -> int:
   client = GitHubClient(token=token)
 
   team_to_rows: Dict[str, List[PullRow]] = {}
+  total_fetch_errors = 0
   for team in TEAMS:
     print(f"Fetching team: {team}")
-    team_to_rows[team] = fetch_team_rows(client, team, since_date)
+    team_rows, fetch_errors = fetch_team_rows(client, team, since_date)
+    team_to_rows[team] = team_rows
+    total_fetch_errors += fetch_errors
 
   html_text = render_dashboard(team_to_rows, generated_at, days)
 
@@ -673,7 +678,16 @@ def main() -> int:
   print(f"Dashboard generated: {output_path}")
   if output_path != LEGACY_OUTPUT_PATH:
     print(f"Local copy generated: {LEGACY_OUTPUT_PATH}")
+  print(f"Fetch errors: {total_fetch_errors}")
   print(f"Teams: {len(TEAMS)} | PR rows: {total} | Lookback: {days} days")
+
+  if total == 0 and total_fetch_errors > 0:
+    print(
+      "ERROR: Dashboard has zero PR rows and one or more GitHub API fetch failures. "
+      "This usually indicates token scope, repository access, or SSO authorization issues."
+    )
+    return 2
+
   return 0
 
 
