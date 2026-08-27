@@ -24,6 +24,7 @@ import datetime as dt
 import html
 import json
 import os
+import re
 import ssl
 import time
 import urllib.error
@@ -215,80 +216,113 @@ def latest_changes_requested_by(reviews: List[dict]) -> str:
     return ", ".join(requesters) if requesters else "-"
 
 
-def fetch_team_rows(client: GitHubClient, team: str, since: str) -> Tuple[List[PullRow], int]:
-    rows: List[PullRow] = []
-    seen: set[Tuple[str, int]] = set()
-    fetch_error_count = 0
-    team_label = f"pd-team-{team.lower()}"
-    since_date = dt.datetime.strptime(since, "%Y-%m-%d").date()
+def team_label_matches(team: str, labels: Iterable[str]) -> bool:
+    team_key = team.lower()
+    canonical = f"pd-team-{team_key}"
 
-    for repo in REPOS:
-        try:
-            items = client.get_prs(repo, since=since)
-        except Exception as exc:
-            fetch_error_count += 1
-            print(f"Warning: failed to fetch PR list for {team} in {repo}: {exc}")
+    for raw_label in labels:
+        lowered = (raw_label or "").strip().lower()
+        if not lowered:
             continue
 
-        for item in items:
-            # Filter by team label locally
-            labels = [l.get("name", "") for l in item.get("labels", [])]
-            if team_label not in labels:
-                continue
+        if lowered == canonical:
+            return True
 
-            # Filter by date
-            created_str = item.get("created_at", "")
-            if created_str:
-                created_date = dt.datetime.fromisoformat(created_str.replace('Z', '+00:00')).date()
-                if created_date < since_date:
-                    continue
+        normalized = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
+        if normalized == canonical:
+            return True
 
-            number = int(item.get("number"))
-            repo_name = repo
-            key = (repo_name, number)
-            if key in seen:
-                continue
-            seen.add(key)
+        if team_key in normalized and ("team" in normalized or normalized.startswith(team_key)):
+            return True
 
-            try:
-                reviews = client.get_json(f"/repos/{repo_name}/pulls/{number}/reviews")
-            except Exception as exc:
-                print(f"Warning: failed to fetch reviews for {repo_name}#{number}: {exc}")
-                reviews = []
+    return False
 
-            approvals, pending_approvals = build_approval_strings(labels)
-            changes_requested_by = latest_changes_requested_by(reviews if isinstance(reviews, list) else [])
-            state = classify_state(item)  # Use item directly, it's the full PR object
 
-            merge_ready = "-"
-            if state == "Open":
-                has_pending = pending_approvals != "All approved ✓"
-                has_changes_requested = changes_requested_by != "-"
-                merge_ready = "✓ Yes" if (not has_pending and not has_changes_requested) else "✗ No"
+def fetch_team_rows(client: GitHubClient, team: str, since: str) -> Tuple[List[PullRow], int]:
+  rows: List[PullRow] = []
+  seen: set[Tuple[str, int]] = set()
+  fetch_error_count = 0
+  since_date = dt.datetime.strptime(since, "%Y-%m-%d").date()
 
-            rows.append(
-                PullRow(
-                    team=team,
-                    number=number,
-                    repo=repo_name,
-                    title=item.get("title", ""),
-                    author=((item.get("user") or {}).get("login") or "-"),
-                    state=state,
-                    created_at=parse_iso_date(item.get("created_at")),
-                    merged_at=parse_iso_date(item.get("merged_at")),
-                    closed_at=parse_iso_date(item.get("closed_at")),
-                    approvals=approvals,
-                    pending_approvals=pending_approvals,
-                    changes_requested_by=changes_requested_by,
-                    merge_ready=merge_ready,
-                    url=item.get("html_url", ""),
-                )
-            )
+  for repo in REPOS:
+    try:
+      items = client.get_prs(repo, since=since)
+    except Exception as exc:
+      fetch_error_count += 1
+      print(f"Warning: failed to fetch PR list for {team} in {repo}: {exc}")
+      continue
 
-            time.sleep(0.12)
+    observed_labels: set[str] = set()
+    matched_in_repo = 0
 
-    rows.sort(key=lambda x: x.created_at, reverse=True)
-    return rows, fetch_error_count
+    for item in items:
+      # Filter by team label locally
+      labels = [l.get("name", "") for l in item.get("labels", [])]
+      observed_labels.update([l for l in labels if l])
+      if not team_label_matches(team, labels):
+        continue
+      matched_in_repo += 1
+
+      # Filter by date
+      created_str = item.get("created_at", "")
+      if created_str:
+        created_date = dt.datetime.fromisoformat(created_str.replace('Z', '+00:00')).date()
+        if created_date < since_date:
+          continue
+
+      number = int(item.get("number"))
+      repo_name = repo
+      key = (repo_name, number)
+      if key in seen:
+        continue
+      seen.add(key)
+
+      try:
+        reviews = client.get_json(f"/repos/{repo_name}/pulls/{number}/reviews")
+      except Exception as exc:
+        print(f"Warning: failed to fetch reviews for {repo_name}#{number}: {exc}")
+        reviews = []
+
+      approvals, pending_approvals = build_approval_strings(labels)
+      changes_requested_by = latest_changes_requested_by(reviews if isinstance(reviews, list) else [])
+      state = classify_state(item)  # Use item directly, it's the full PR object
+
+      merge_ready = "-"
+      if state == "Open":
+        has_pending = pending_approvals != "All approved ✓"
+        has_changes_requested = changes_requested_by != "-"
+        merge_ready = "✓ Yes" if (not has_pending and not has_changes_requested) else "✗ No"
+
+      rows.append(
+        PullRow(
+          team=team,
+          number=number,
+          repo=repo_name,
+          title=item.get("title", ""),
+          author=((item.get("user") or {}).get("login") or "-"),
+          state=state,
+          created_at=parse_iso_date(item.get("created_at")),
+          merged_at=parse_iso_date(item.get("merged_at")),
+          closed_at=parse_iso_date(item.get("closed_at")),
+          approvals=approvals,
+          pending_approvals=pending_approvals,
+          changes_requested_by=changes_requested_by,
+          merge_ready=merge_ready,
+          url=item.get("html_url", ""),
+        )
+      )
+
+      time.sleep(0.12)
+
+    if items and matched_in_repo == 0:
+      sample = ", ".join(sorted(observed_labels)[:10]) if observed_labels else "none"
+      print(
+        f"Warning: no team-label matches for {team} in {repo}. "
+        f"Expected pattern like pd-team-{team.lower()}. Observed labels sample: {sample}"
+      )
+
+  rows.sort(key=lambda x: x.created_at, reverse=True)
+  return rows, fetch_error_count
 
 
 def summarize(rows: List[PullRow]) -> Dict[str, int]:
