@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """
-Generate a multi-team PR metrics dashboard similar to the Galaxy dashboard.
+Generate the Scrum Teams PR Metrics Dashboard (static HTML for GitHub Pages).
 
 Data source:
-- GitHub Pulls API for PR discovery by repository
-- GitHub Reviews API for change-request details
-- Team ownership and approvals derived from PR labels
+- GitHub Pulls API: each repo is listed once (newest first, stopping at the lookback window)
+- GitHub Reviews API: "changes requested" details, only for team-labeled PRs in the window
+- Team ownership and approvals come from PR labels (pd-team-<name>, has-*-approval)
 
 Usage:
-  python generate_pr_metrics_dashboard.py
+  GITHUB_TOKEN=<pat> python3 generate_pr_metrics_dashboard.py
 
-Optional env vars:
-  GITHUB_TOKEN or GH_TOKEN   GitHub token (recommended to avoid low rate limits)
-  DASHBOARD_DAYS             Lookback window in days (default: 30)
+Env vars:
+  GITHUB_TOKEN or GH_TOKEN   Required. PAT with repo scope, SSO-authorized for blackboard-learn
+  DASHBOARD_DAYS             Lookback window in days (default: 60)
   DASHBOARD_OUTPUT           Output HTML path (default: docs/index.html)
-  ADO_ORG_URL or AZDO_ORG_URL   Azure DevOps org URL (for Epic/Bug links)
-  ADO_PROJECT or AZDO_PROJECT   Azure DevOps project name (for Epic/Bug links)
+  ADO_ORG_URL / ADO_PROJECT  Azure DevOps links for AB#12345 tokens in PR titles
 """
 
 from __future__ import annotations
@@ -26,12 +25,13 @@ import json
 import os
 import re
 import ssl
+import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 TEAMS: List[str] = [
     "Sparrow",
@@ -60,9 +60,9 @@ APPROVAL_LABELS: List[Tuple[str, str]] = [
     ("has-value-stream-approval", "VS"),
 ]
 
-DEFAULT_DAYS = 30
+DEFAULT_DAYS = 60
 DEFAULT_OUTPUT_PATH = "docs/index.html"
-LEGACY_OUTPUT_PATH = "pr_metrics_dashboard.html"
+MAX_PAGES_PER_REPO = 30  # 3,000 PRs safety cap
 ADO_ORG_URL = (os.getenv("ADO_ORG_URL") or os.getenv("AZDO_ORG_URL") or "").rstrip("/")
 ADO_PROJECT = os.getenv("ADO_PROJECT") or os.getenv("AZDO_PROJECT") or ""
 
@@ -86,243 +86,186 @@ class PullRow:
 
 
 class GitHubClient:
-    def __init__(self, token: str | None = None) -> None:
+    def __init__(self, token: str) -> None:
         self.base = "https://api.github.com"
         self.headers = {
             "Accept": "application/vnd.github+json",
-            "User-Agent": "pr-metrics-dashboard-generator",
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "scrum-pr-dashboard-generator",
             "X-GitHub-Api-Version": "2022-11-28",
         }
-        if token:
-            self.headers["Authorization"] = f"Bearer {token}"
 
-    def get_json(self, path_or_url: str, params: Dict[str, str] | None = None) -> dict:
-      url = path_or_url if path_or_url.startswith("http") else f"{self.base}{path_or_url}"
-      if params:
-        query = urllib.parse.urlencode(params)
-        sep = "&" if "?" in url else "?"
-        url = f"{url}{sep}{query}"
+    def get_json(self, path: str, params: Optional[Dict[str, str]] = None):
+        url = path if path.startswith("http") else f"{self.base}{path}"
+        if params:
+            url = f"{url}?{urllib.parse.urlencode(params)}"
+        req = urllib.request.Request(url, headers=self.headers)
+        for attempt in range(1, 4):
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    return json.loads(resp.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")[:300]
+                retry_after = exc.headers.get("Retry-After")
+                if exc.code in (403, 429) and retry_after and attempt < 3:
+                    time.sleep(min(int(retry_after), 60))
+                    continue
+                if exc.code >= 500 and attempt < 3:
+                    time.sleep(2 * attempt)
+                    continue
+                raise RuntimeError(f"GitHub API error {exc.code} for {url}: {detail}") from exc
+            except (urllib.error.URLError, ssl.SSLError) as exc:
+                if attempt == 3:
+                    raise RuntimeError(f"GitHub API network error for {url}: {exc}") from exc
+                time.sleep(1.5 * attempt)
+        raise RuntimeError(f"GitHub API request failed for {url}")
 
-      req = urllib.request.Request(url, headers=self.headers)
-      retries = 3
-      for attempt in range(1, retries + 1):
-        try:
-          with urllib.request.urlopen(req, timeout=60) as resp:
-            payload = resp.read().decode("utf-8")
-            return json.loads(payload)
-        except urllib.error.HTTPError as exc:
-          detail = exc.read().decode("utf-8", errors="replace")
-          raise RuntimeError(f"GitHub API error {exc.code} for {url}: {detail}") from exc
-        except (urllib.error.URLError, ssl.SSLError) as exc:
-          if attempt == retries:
-            raise RuntimeError(f"GitHub API network error for {url}: {exc}") from exc
-          time.sleep(1.5 * attempt)
-
-      raise RuntimeError(f"GitHub API request failed for {url}")
-
-    def get_prs(self, repo: str, since: str = None) -> List[dict]:
-        """Fetch all PRs from a repo using /repos/{owner}/{repo}/pulls endpoint."""
+    def list_recent_prs(self, repo: str, since: dt.date) -> List[dict]:
+        """List PRs newest-first and stop once they are older than `since`."""
         items: List[dict] = []
-        page = 1
-        params: Dict[str, str] = {"state": "all", "per_page": "100", "page": str(page)}
-        if since:
-            params["sort"] = "created"
-            params["direction"] = "desc"
-        
-        while True:
-            data = self.get_json(
+        for page in range(1, MAX_PAGES_PER_REPO + 1):
+            batch = self.get_json(
                 f"/repos/{repo}/pulls",
-                params=params,
+                {"state": "all", "sort": "created", "direction": "desc",
+                 "per_page": "100", "page": str(page)},
             )
-            if not isinstance(data, list):
+            if not isinstance(batch, list) or not batch:
                 break
-            batch = data
-            if not batch:
-                break
-            items.extend(batch)
+            for pr in batch:
+                if created_date(pr) < since:
+                    return items
+                items.append(pr)
             if len(batch) < 100:
                 break
-            page += 1
-            if page > 10:  # limit to 1000 PRs max per repo
-                break
-            params["page"] = str(page)
-            time.sleep(0.15)
+            time.sleep(0.1)
         return items
 
 
-def parse_iso_date(value: str | None) -> str:
-    if not value:
-        return ""
-    return value[:10]
+def created_date(pr: dict) -> dt.date:
+    return dt.date.fromisoformat((pr.get("created_at") or "1970-01-01")[:10])
 
 
-def display_date(value: str) -> str:
-    if not value:
-        return "-"
-    return value
+def date_only(value: Optional[str]) -> str:
+    return value[:10] if value else ""
 
 
 def classify_state(pr: dict) -> str:
-    if pr.get("draft"):
-        return "Draft"
     if pr.get("merged_at"):
         return "Merged"
     if pr.get("state") == "closed":
         return "Closed"
+    if pr.get("draft"):
+        return "Draft"
     return "Open"
 
 
 def build_approval_strings(labels: Iterable[str]) -> Tuple[str, str]:
-    label_set = set(labels)
-    approved_parts: List[str] = []
-    pending_parts: List[str] = []
-    for key, display in APPROVAL_LABELS:
-        if key in label_set:
-            approved_parts.append(f"{display} ✓")
-        else:
-            pending_parts.append(f"{display} Approval")
-
-    approvals = " ".join(approved_parts) if approved_parts else "None yet"
-    pending = ", ".join(pending_parts) if pending_parts else "All approved ✓"
-    return approvals, pending
-
-
-def extract_work_item_id(title: str) -> str:
-  """Extract Azure Boards work item id from AB#12345 token in PR title."""
-  import re
-  match = re.search(r"\bAB#(\d+)\b", title)
-  return match.group(1) if match else ""
-
-
-def build_ado_work_item_url(work_item_id: str) -> str:
-  if not work_item_id or not ADO_ORG_URL:
-    return ""
-  if ADO_PROJECT:
-    project = urllib.parse.quote(ADO_PROJECT, safe="")
-    return f"{ADO_ORG_URL}/{project}/_workitems/edit/{work_item_id}"
-  return f"{ADO_ORG_URL}/_workitems/edit/{work_item_id}"
+    label_set = {l.lower() for l in labels}
+    approved = [f"{name} ✓" for key, name in APPROVAL_LABELS if key in label_set]
+    pending = [f"{name} Approval" for key, name in APPROVAL_LABELS if key not in label_set]
+    return (" ".join(approved) or "None yet"), (", ".join(pending) or "All approved ✓")
 
 
 def latest_changes_requested_by(reviews: List[dict]) -> str:
-    latest_by_user: Dict[str, str] = {}
+    latest: Dict[str, str] = {}
     for r in reviews:
         user = (r.get("user") or {}).get("login")
         state = (r.get("state") or "").upper()
-        if not user:
+        # COMMENTED reviews don't clear an earlier change request
+        if user and state in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
+            latest[user] = state
+    requesters = sorted(u for u, st in latest.items() if st == "CHANGES_REQUESTED")
+    return ", ".join(requesters) or "-"
+
+
+def team_for_labels(labels: Iterable[str]) -> Optional[str]:
+    """Map labels like pd-team-sparrow / PD Team: Sparrow / sparrow-team to a team."""
+    for raw in labels:
+        norm = re.sub(r"[^a-z0-9]+", "-", (raw or "").lower()).strip("-")
+        if not norm:
             continue
-        latest_by_user[user] = state
+        for team in TEAMS:
+            key = team.lower()
+            if norm == f"pd-team-{key}" or (key in norm.split("-") and ("team" in norm or norm == key)):
+                return team
+    return None
 
-    requesters = sorted([u for u, st in latest_by_user.items() if st == "CHANGES_REQUESTED"])
-    return ", ".join(requesters) if requesters else "-"
+
+def extract_work_item_id(title: str) -> str:
+    match = re.search(r"\bAB#(\d+)\b", title)
+    return match.group(1) if match else ""
 
 
-def team_label_matches(team: str, labels: Iterable[str]) -> bool:
-    team_key = team.lower()
-    canonical = f"pd-team-{team_key}"
+def ado_work_item_url(work_item_id: str) -> str:
+    if not work_item_id or not ADO_ORG_URL:
+        return ""
+    if ADO_PROJECT:
+        return f"{ADO_ORG_URL}/{urllib.parse.quote(ADO_PROJECT, safe='')}/_workitems/edit/{work_item_id}"
+    return f"{ADO_ORG_URL}/_workitems/edit/{work_item_id}"
 
-    for raw_label in labels:
-        lowered = (raw_label or "").strip().lower()
-        if not lowered:
+
+def collect_rows(client: GitHubClient, since: dt.date) -> Tuple[Dict[str, List[PullRow]], List[str]]:
+    team_rows: Dict[str, List[PullRow]] = {t: [] for t in TEAMS}
+    errors: List[str] = []
+
+    for repo in REPOS:
+        try:
+            prs = client.list_recent_prs(repo, since)
+        except Exception as exc:
+            errors.append(f"{repo}: {exc}")
+            print(f"ERROR: could not list PRs for {repo}: {exc}", file=sys.stderr)
             continue
 
-        if lowered == canonical:
-            return True
+        matched = 0
+        observed: set = set()
+        for pr in prs:
+            labels = [l.get("name", "") for l in pr.get("labels", [])]
+            observed.update(labels)
+            team = team_for_labels(labels)
+            if not team:
+                continue
+            matched += 1
 
-        normalized = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-        if normalized == canonical:
-            return True
+            number = int(pr["number"])
+            try:
+                reviews = client.get_json(f"/repos/{repo}/pulls/{number}/reviews", {"per_page": "100"})
+            except Exception as exc:
+                print(f"Warning: reviews unavailable for {repo}#{number}: {exc}", file=sys.stderr)
+                reviews = []
 
-        if team_key in normalized and ("team" in normalized or normalized.startswith(team_key)):
-            return True
+            approvals, pending = build_approval_strings(labels)
+            changes = latest_changes_requested_by(reviews if isinstance(reviews, list) else [])
+            state = classify_state(pr)
+            merge_ready = "-"
+            if state == "Open":
+                merge_ready = "✓ Yes" if pending == "All approved ✓" and changes == "-" else "✗ No"
 
-    return False
+            team_rows[team].append(PullRow(
+                team=team,
+                number=number,
+                repo=repo,
+                title=pr.get("title", ""),
+                author=(pr.get("user") or {}).get("login") or "-",
+                state=state,
+                created_at=date_only(pr.get("created_at")),
+                merged_at=date_only(pr.get("merged_at")),
+                closed_at=date_only(pr.get("closed_at")),
+                approvals=approvals,
+                pending_approvals=pending,
+                changes_requested_by=changes,
+                merge_ready=merge_ready,
+                url=pr.get("html_url", ""),
+            ))
+            time.sleep(0.05)
 
+        print(f"{repo}: {len(prs)} PRs in window, {matched} with a team label")
+        if prs and not matched:
+            sample = ", ".join(sorted(l for l in observed if l)[:15]) or "none"
+            print(f"Warning: no team labels matched in {repo}. Labels seen: {sample}", file=sys.stderr)
 
-def fetch_team_rows(client: GitHubClient, team: str, since: str) -> Tuple[List[PullRow], int]:
-  rows: List[PullRow] = []
-  seen: set[Tuple[str, int]] = set()
-  fetch_error_count = 0
-  since_date = dt.datetime.strptime(since, "%Y-%m-%d").date()
-
-  for repo in REPOS:
-    try:
-      items = client.get_prs(repo, since=since)
-    except Exception as exc:
-      fetch_error_count += 1
-      print(f"Warning: failed to fetch PR list for {team} in {repo}: {exc}")
-      continue
-
-    observed_labels: set[str] = set()
-    matched_in_repo = 0
-
-    for item in items:
-      # Filter by team label locally
-      labels = [l.get("name", "") for l in item.get("labels", [])]
-      observed_labels.update([l for l in labels if l])
-      if not team_label_matches(team, labels):
-        continue
-      matched_in_repo += 1
-
-      # Filter by date
-      created_str = item.get("created_at", "")
-      if created_str:
-        created_date = dt.datetime.fromisoformat(created_str.replace('Z', '+00:00')).date()
-        if created_date < since_date:
-          continue
-
-      number = int(item.get("number"))
-      repo_name = repo
-      key = (repo_name, number)
-      if key in seen:
-        continue
-      seen.add(key)
-
-      try:
-        reviews = client.get_json(f"/repos/{repo_name}/pulls/{number}/reviews")
-      except Exception as exc:
-        print(f"Warning: failed to fetch reviews for {repo_name}#{number}: {exc}")
-        reviews = []
-
-      approvals, pending_approvals = build_approval_strings(labels)
-      changes_requested_by = latest_changes_requested_by(reviews if isinstance(reviews, list) else [])
-      state = classify_state(item)  # Use item directly, it's the full PR object
-
-      merge_ready = "-"
-      if state == "Open":
-        has_pending = pending_approvals != "All approved ✓"
-        has_changes_requested = changes_requested_by != "-"
-        merge_ready = "✓ Yes" if (not has_pending and not has_changes_requested) else "✗ No"
-
-      rows.append(
-        PullRow(
-          team=team,
-          number=number,
-          repo=repo_name,
-          title=item.get("title", ""),
-          author=((item.get("user") or {}).get("login") or "-"),
-          state=state,
-          created_at=parse_iso_date(item.get("created_at")),
-          merged_at=parse_iso_date(item.get("merged_at")),
-          closed_at=parse_iso_date(item.get("closed_at")),
-          approvals=approvals,
-          pending_approvals=pending_approvals,
-          changes_requested_by=changes_requested_by,
-          merge_ready=merge_ready,
-          url=item.get("html_url", ""),
-        )
-      )
-
-      time.sleep(0.12)
-
-    if items and matched_in_repo == 0:
-      sample = ", ".join(sorted(observed_labels)[:10]) if observed_labels else "none"
-      print(
-        f"Warning: no team-label matches for {team} in {repo}. "
-        f"Expected pattern like pd-team-{team.lower()}. Observed labels sample: {sample}"
-      )
-
-  rows.sort(key=lambda x: x.created_at, reverse=True)
-  return rows, fetch_error_count
+    for rows in team_rows.values():
+        rows.sort(key=lambda r: r.created_at, reverse=True)
+    return team_rows, errors
 
 
 def summarize(rows: List[PullRow]) -> Dict[str, int]:
@@ -332,97 +275,93 @@ def summarize(rows: List[PullRow]) -> Dict[str, int]:
     return counts
 
 
-def render_dashboard(team_to_rows: Dict[str, List[PullRow]], generated_at: str, days: int) -> str:
-    all_rows = [r for rows in team_to_rows.values() for r in rows]
-    totals = summarize(all_rows)
+def render_row(r: PullRow) -> str:
+    e = html.escape
+    repo_short = "Learn" if r.repo.endswith("/learn") else "Ultra"
+    wid = extract_work_item_id(r.title)
+    if wid:
+        url = ado_work_item_url(wid)
+        work_item = f'<a href="{e(url)}" target="_blank">AB#{wid}</a>' if url else f"AB#{wid}"
+    else:
+        work_item = "-"
+    ready_cls = "ok" if r.merge_ready.startswith("✓") else ("no" if r.merge_ready.startswith("✗") else "")
+    return f"""
+        <tr data-state="{r.state.lower()}" data-created="{r.created_at}" data-changes="{e(r.changes_requested_by.lower())}">
+          <td><a href="{e(r.url)}" target="_blank">#{r.number}</a><br/><small class="wi">{work_item}</small></td>
+          <td>{e(r.title)}</td>
+          <td>{e(r.author)}</td>
+          <td><span class="pill {r.state.lower()}">{r.state}</span> <span class="repo">{repo_short}</span></td>
+          <td>{r.created_at or "-"}</td>
+          <td>{r.merged_at or "-"}</td>
+          <td>{r.closed_at or "-"}</td>
+          <td>{e(r.approvals)}</td>
+          <td>{e(r.pending_approvals)}</td>
+          <td>{e(r.changes_requested_by)}</td>
+          <td class="{ready_cls}">{r.merge_ready}</td>
+        </tr>"""
 
-    sections: List[str] = []
+
+def render_dashboard(team_rows: Dict[str, List[PullRow]], generated_at: str, days: int, errors: List[str]) -> str:
+    totals = summarize([r for rows in team_rows.values() for r in rows])
+
+    sections = []
     for team in TEAMS:
-        rows = team_to_rows.get(team, [])
+        rows = team_rows.get(team, [])
         s = summarize(rows)
+        body = "".join(render_row(r) for r in rows) or '<tr class="__none"><td colspan="11">No PRs found for selected range.</td></tr>'
+        sections.append(f"""
+    <section class="team-section" data-team="{team}">
+      <h2>{team} Team
+        <span class="team-summary">Total: {s['Total']} | Open: {s['Open']} | Draft: {s['Draft']} | Merged: {s['Merged']} | Closed: {s['Closed']}</span>
+      </h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
+              <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
+            </tr>
+          </thead>
+          <tbody>{body}
+          </tbody>
+        </table>
+      </div>
+    </section>""")
 
-        table_rows: List[str] = []
-        for r in rows:
-            title = html.escape(r.title)
-            author = html.escape(r.author)
-            repo_short = "Learn" if r.repo.endswith("/learn") else "Ultra"
-            approvals = html.escape(r.approvals)
-            pending = html.escape(r.pending_approvals)
-            changes = html.escape(r.changes_requested_by)
+    banner = ""
+    if errors:
+        items = "".join(f"<li>{html.escape(e)}</li>" for e in errors)
+        banner = f'<div class="error-banner"><strong>Some data could not be fetched.</strong> Check the DASHBOARD_GH_TOKEN secret (repo scope, SSO-authorized).<ul>{items}</ul></div>'
 
-            state_lower = r.state.lower()
-            changes_data = r.changes_requested_by.lower().replace('"', "")
+    team_options = "".join(f'<option value="{t}">{t}</option>' for t in TEAMS)
+    day_options = "".join(
+        f'<option value="{d}"{" selected" if d == min(30, days) else ""}>Last {d} days</option>'
+        for d in (7, 14, 30, 60, 90) if d <= days
+    )
 
-            work_item_id = extract_work_item_id(r.title)
-            if work_item_id:
-              epic_label = f"AB#{work_item_id}"
-              ado_url = build_ado_work_item_url(work_item_id)
-              if ado_url:
-                epic_html = f'<a href="{html.escape(ado_url)}" target="_blank">{html.escape(epic_label)}</a>'
-              else:
-                epic_html = html.escape(epic_label)
-            else:
-              epic_html = "-"
-            table_rows.append(
-                f"""
-                <tr data-state=\"{state_lower}\" data-created=\"{r.created_at}\" data-changes=\"{changes_data}\">
-                <td><a href=\"{html.escape(r.url)}\" target=\"_blank\">#{r.number}</a><br/><small style=\"color:#999;font-size:11px;font-weight:normal\">{epic_html}</small></td>
-                  <td>{title}</td>
-                  <td>{author}</td>
-                  <td>{r.state} {repo_short}</td>
-                  <td>{display_date(r.created_at)}</td>
-                  <td>{display_date(r.merged_at)}</td>
-                  <td>{display_date(r.closed_at)}</td>
-                  <td>{approvals}</td>
-                  <td>{pending}</td>
-                  <td>{changes}</td>
-                  <td>{r.merge_ready}</td>
-                </tr>
-                """
-            )
+    return TEMPLATE.format(
+        days=days,
+        generated_at=generated_at,
+        team_list=" | ".join(TEAMS),
+        total=totals["Total"], open=totals["Open"], draft=totals["Draft"],
+        merged=totals["Merged"], closed=totals["Closed"],
+        team_options=team_options,
+        day_options=day_options,
+        banner=banner,
+        sections="".join(sections),
+    )
 
-        sections.append(
-            f"""
-            <section class=\"team-section\" data-team=\"{team}\">
-              <h2>{team} Team
-                <span class=\"team-summary\">Total: {s['Total']} | Open: {s['Open']} | Draft: {s['Draft']} | Merged: {s['Merged']} | Closed: {s['Closed']}</span>
-              </h2>
-              <div class=\"table-wrap\">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>PR</th><th>Title</th><th>Author</th><th>State</th><th>Created</th>
-                      <th>Merged</th><th>Closed</th><th>Approvals</th><th>Pending Approval</th><th>Changes Requested By</th><th>Merge Ready</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {''.join(table_rows) if table_rows else '<tr><td colspan="11">No PRs found for selected range.</td></tr>'}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-            """
-        )
 
-    team_options = "".join([f"<option value=\"{t}\">{t}</option>" for t in TEAMS])
-
-    return f"""<!doctype html>
-<html lang=\"en\">
+TEMPLATE = """<!doctype html>
+<html lang="en">
 <head>
-  <meta charset=\"utf-8\" />
-  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>PR Metrics Dashboard</title>
   <style>
     :root {{
-      --bg: #f2f5f9;
-      --ink: #1c2533;
-      --muted: #5a6472;
-      --card: #ffffff;
-      --line: #d9e1ea;
-      --accent: #0d9488;
-      --accent-2: #2563eb;
-      --warn: #b45309;
-      --ok: #0f766e;
+      --bg: #f2f5f9; --ink: #1c2533; --muted: #5a6472; --card: #ffffff; --line: #d9e1ea;
+      --accent: #0d9488; --accent-2: #2563eb; --warn: #b45309; --ok: #0f766e; --bad: #b91c1c;
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -437,73 +376,32 @@ def render_dashboard(team_to_rows: Dict[str, List[PullRow]], generated_at: str, 
     .container {{ max-width: 1500px; margin: 0 auto; padding: 18px; }}
     .hero {{
       background: linear-gradient(135deg, #0f766e, #1d4ed8);
-      color: #fff;
-      border-radius: 16px;
-      padding: 18px 22px;
-      box-shadow: 0 12px 34px rgba(22, 43, 75, 0.2);
-      margin-bottom: 14px;
+      color: #fff; border-radius: 16px; padding: 18px 22px;
+      box-shadow: 0 12px 34px rgba(22, 43, 75, 0.2); margin-bottom: 14px;
     }}
     .hero h1 {{ margin: 0 0 8px; font-size: 28px; letter-spacing: 0.3px; }}
     .meta {{ font-size: 14px; opacity: 0.96; }}
     .team-list {{ margin-top: 8px; font-size: 14px; }}
+    .hero button {{ border: 0; border-radius: 10px; padding: 9px 14px; background: #f8fafc; color: #0f172a; font-weight: 700; cursor: pointer; margin-top: 10px; }}
 
-    .summary {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 10px;
-      margin: 12px 0;
-    }}
-    .kpi {{
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 10px 12px;
-      box-shadow: 0 3px 12px rgba(20, 28, 45, 0.05);
-    }}
+    .error-banner {{ background: #fef2f2; border: 1px solid #fecaca; color: var(--bad); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; }}
+    .error-banner ul {{ margin: 6px 0 0; padding-left: 18px; font-size: 12px; }}
+
+    .summary {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 12px 0; }}
+    .kpi {{ background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: 0 3px 12px rgba(20, 28, 45, 0.05); }}
     .kpi .label {{ font-size: 12px; color: var(--muted); text-transform: uppercase; }}
-    .kpi .value {{ font-size: 24px; font-weight: 700; margin-top: 3px; }}
+    .kpi .value {{ font-size: 24px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }}
 
     .filters {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 10px;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 12px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px;
     }}
     label {{ display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; }}
-    select, input {{
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 8px 10px;
-      font-size: 14px;
-      background: #fff;
-    }}
+    select, input {{ width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 14px; background: #fff; }}
 
-    .team-section {{
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      margin: 10px 0 14px;
-      overflow: hidden;
-      box-shadow: 0 3px 12px rgba(20, 28, 45, 0.05);
-    }}
-    .team-section h2 {{
-      margin: 0;
-      padding: 12px;
-      font-size: 19px;
-      border-bottom: 1px solid var(--line);
-      background: #f8fafc;
-    }}
-    .team-summary {{
-      font-size: 13px;
-      color: var(--muted);
-      margin-left: 10px;
-      font-weight: 500;
-    }}
+    .team-section {{ background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin: 10px 0 14px; overflow: hidden; box-shadow: 0 3px 12px rgba(20, 28, 45, 0.05); }}
+    .team-section h2 {{ margin: 0; padding: 12px; font-size: 19px; border-bottom: 1px solid var(--line); background: #f8fafc; }}
+    .team-summary {{ font-size: 13px; color: var(--muted); margin-left: 10px; font-weight: 500; }}
 
     .table-wrap {{ width: 100%; overflow-x: auto; }}
     table {{ border-collapse: collapse; width: 100%; min-width: 1300px; font-size: 13px; }}
@@ -512,152 +410,129 @@ def render_dashboard(team_to_rows: Dict[str, List[PullRow]], generated_at: str, 
     tbody tr:nth-child(odd) {{ background: #fcfdff; }}
     a {{ color: var(--accent-2); text-decoration: none; font-weight: 600; }}
     a:hover {{ text-decoration: underline; }}
+    .wi, .wi a {{ color: #94a3b8; font-size: 11px; font-weight: normal; }}
+    .pill {{ display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }}
+    .pill.open {{ background: #dbeafe; color: #1d4ed8; }}
+    .pill.draft {{ background: #f1f5f9; color: #475569; }}
+    .pill.merged {{ background: #ede9fe; color: #6d28d9; }}
+    .pill.closed {{ background: #fee2e2; color: #b91c1c; }}
+    .repo {{ color: var(--muted); font-size: 12px; }}
+    td.ok {{ color: var(--ok); font-weight: 600; }}
+    td.no {{ color: var(--warn); font-weight: 600; }}
 
     .footer {{ color: var(--muted); font-size: 12px; margin-top: 10px; }}
 
     @media (max-width: 760px) {{
+      .container {{ padding: 16px; }}
       .hero h1 {{ font-size: 22px; }}
       .team-summary {{ display: block; margin: 6px 0 0; }}
     }}
   </style>
 </head>
 <body>
-  <div class=\"container\">
-    <header class=\"hero\">
+  <div class="container">
+    <header class="hero">
       <h1>Scrum Teams PR Metrics Dashboard</h1>
-      <div class=\"meta\">Repos: blackboard-learn/learn + blackboard-learn/ultra | Last {days} days</div>
-      <div class=\"meta\" id=\"lastRefresh\">Last refresh: {generated_at}</div>
-      <div style=\"margin-top:10px\">
-        <button id=\"refreshBtn\" style=\"border:0;border-radius:10px;padding:9px 14px;background:#f8fafc;color:#0f172a;font-weight:700;cursor:pointer\">Refresh Latest Status</button>
-      </div>
-      <div class=\"team-list\">Teams: {' | '.join(TEAMS)}</div>
+      <div class="meta">Repos: blackboard-learn/learn + blackboard-learn/ultra | Last {days} days fetched</div>
+      <div class="meta">Last refresh: {generated_at}</div>
+      <button id="refreshBtn">Refresh Latest Status</button>
+      <div class="team-list">Teams: {team_list}</div>
     </header>
 
-    <div class=\"summary\">
-      <div class=\"kpi\"><div class=\"label\">Total PRs</div><div class=\"value\">{totals['Total']}</div></div>
-      <div class=\"kpi\"><div class=\"label\">Open</div><div class=\"value\">{totals['Open']}</div></div>
-      <div class=\"kpi\"><div class=\"label\">Draft</div><div class=\"value\">{totals['Draft']}</div></div>
-      <div class=\"kpi\"><div class=\"label\">Merged</div><div class=\"value\">{totals['Merged']}</div></div>
-      <div class=\"kpi\"><div class=\"label\">Closed</div><div class=\"value\">{totals['Closed']}</div></div>
+    {banner}
+
+    <div class="summary">
+      <div class="kpi"><div class="label">Total PRs</div><div class="value" id="kTotal">{total}</div></div>
+      <div class="kpi"><div class="label">Open</div><div class="value" id="kOpen">{open}</div></div>
+      <div class="kpi"><div class="label">Draft</div><div class="value" id="kDraft">{draft}</div></div>
+      <div class="kpi"><div class="label">Merged</div><div class="value" id="kMerged">{merged}</div></div>
+      <div class="kpi"><div class="label">Closed</div><div class="value" id="kClosed">{closed}</div></div>
     </div>
 
-    <section class=\"filters\">
+    <section class="filters">
       <div>
-        <label for=\"teamFilter\">Filter by Team</label>
-        <select id=\"teamFilter\">
-          <option value=\"ALL\">All Teams</option>
-          {team_options}
+        <label for="teamFilter">Filter by Team</label>
+        <select id="teamFilter"><option value="ALL">All Teams</option>{team_options}</select>
+      </div>
+      <div>
+        <label for="stateFilter">State</label>
+        <select id="stateFilter">
+          <option value="ALL">All States</option>
+          <option value="open">Open</option>
+          <option value="draft">Draft</option>
+          <option value="merged">Merged</option>
+          <option value="closed">Closed</option>
         </select>
       </div>
       <div>
-        <label for=\"stateFilter\">State</label>
-        <select id=\"stateFilter\">
-          <option value=\"ALL\">All States</option>
-          <option value=\"open\">Open</option>
-          <option value=\"draft\">Draft</option>
-          <option value=\"merged\">Merged</option>
-          <option value=\"closed\">Closed</option>
-        </select>
+        <label for="changesFilter">Changes Requested By</label>
+        <input id="changesFilter" type="text" placeholder="e.g. user-login" />
       </div>
       <div>
-        <label for=\"changesFilter\">Changes Requested By</label>
-        <input id=\"changesFilter\" type=\"text\" placeholder=\"e.g. user-login\" />
-      </div>
-      <div>
-        <label for=\"daysFilter\">Time Range</label>
-        <select id=\"daysFilter\">
-          <option value=\"7\">Last 7 days</option>
-          <option value=\"30\" selected>Last 30 days</option>
-          <option value=\"60\">Last 60 days</option>
-          <option value=\"3650\">All fetched</option>
-        </select>
+        <label for="daysFilter">Time Range</label>
+        <select id="daysFilter">{day_options}<option value="36500">All fetched</option></select>
       </div>
     </section>
+{sections}
 
-    {''.join(sections)}
-
-    <div class=\"footer\">Approval legend: Team ✓, Tech Lead ✓, CES ✓, VS ✓</div>
+    <div class="footer">Approval legend: Team ✓, Tech Lead ✓, CES ✓, VS ✓ · Merge Ready = open, all four approvals, no outstanding change requests</div>
   </div>
 
 <script>
 (function () {{
-  const refreshBtn = document.getElementById('refreshBtn');
-  const teamFilter = document.getElementById('teamFilter');
-  const stateFilter = document.getElementById('stateFilter');
-  const changesFilter = document.getElementById('changesFilter');
-  const daysFilter = document.getElementById('daysFilter');
-
+  const $ = (id) => document.getElementById(id);
+  const teamFilter = $('teamFilter'), stateFilter = $('stateFilter'), changesFilter = $('changesFilter'), daysFilter = $('daysFilter');
   const sections = Array.from(document.querySelectorAll('.team-section'));
 
-  function parseDateOnly(str) {{
-    if (!str) return null;
-    const d = new Date(str + 'T00:00:00');
-    return Number.isNaN(d.getTime()) ? null : d;
-  }}
-
-  function isWithinRange(created, days) {{
+  function withinDays(created, days) {{
     if (!created) return false;
-    const createdDate = parseDateOnly(created);
-    if (!createdDate) return false;
-
-    const now = new Date();
-    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    from.setDate(from.getDate() - days);
-    return createdDate >= from;
+    const d = new Date(created + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return false;
+    const from = new Date(); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - days);
+    return d >= from;
   }}
 
   function applyFilters() {{
-    const selectedTeam = teamFilter.value;
-    const selectedState = stateFilter.value;
-    const changesQuery = (changesFilter.value || '').trim().toLowerCase();
+    const team = teamFilter.value, state = stateFilter.value;
+    const q = changesFilter.value.trim().toLowerCase();
     const days = Number(daysFilter.value || '30');
+    const totals = {{ total: 0, open: 0, draft: 0, merged: 0, closed: 0 }};
 
     sections.forEach((section) => {{
-      const teamName = section.getAttribute('data-team');
-      const showSection = selectedTeam === 'ALL' || teamName === selectedTeam;
-      section.style.display = showSection ? '' : 'none';
-      if (!showSection) return;
+      const show = team === 'ALL' || section.dataset.team === team;
+      section.style.display = show ? '' : 'none';
+      if (!show) return;
 
-      const rows = Array.from(section.querySelectorAll('tbody tr'));
-      let visibleCount = 0;
-      rows.forEach((row) => {{
-        const state = row.getAttribute('data-state') || '';
-        const created = row.getAttribute('data-created') || '';
-        const changes = row.getAttribute('data-changes') || '';
-
-        if (row.children.length === 1) {{
-          row.style.display = 'none';
-          return;
-        }}
-
-        const stateOk = selectedState === 'ALL' || state === selectedState;
-        const daysOk = isWithinRange(created, days);
-        const changesOk = !changesQuery || changes.includes(changesQuery);
-        const showRow = stateOk && daysOk && changesOk;
-
-        row.style.display = showRow ? '' : 'none';
-        if (showRow) visibleCount += 1;
+      let visible = 0;
+      section.querySelectorAll('tbody tr[data-state]').forEach((row) => {{
+        const ok = (state === 'ALL' || row.dataset.state === state)
+          && withinDays(row.dataset.created, days)
+          && (!q || row.dataset.changes.includes(q));
+        row.style.display = ok ? '' : 'none';
+        if (ok) {{ visible++; totals.total++; totals[row.dataset.state]++; }}
       }});
 
-      let empty = section.querySelector('tbody tr.__empty');
+      const none = section.querySelector('tr.__none');
+      if (none) none.style.display = 'none';
+      let empty = section.querySelector('tr.__empty');
       if (!empty) {{
         empty = document.createElement('tr');
         empty.className = '__empty';
         empty.innerHTML = '<td colspan="11">No PRs match the current filters.</td>';
         section.querySelector('tbody').appendChild(empty);
       }}
-      empty.style.display = visibleCount === 0 ? '' : 'none';
+      empty.style.display = visible ? 'none' : '';
     }});
+
+    $('kTotal').textContent = totals.total; $('kOpen').textContent = totals.open;
+    $('kDraft').textContent = totals.draft; $('kMerged').textContent = totals.merged;
+    $('kClosed').textContent = totals.closed;
   }}
 
-  [teamFilter, stateFilter, changesFilter, daysFilter].forEach((el) => {{
-    el.addEventListener('input', applyFilters);
-    el.addEventListener('change', applyFilters);
-  }});
+  [teamFilter, stateFilter, changesFilter, daysFilter].forEach((el) => el.addEventListener('input', applyFilters));
 
-  refreshBtn.addEventListener('click', () => {{
-    refreshBtn.disabled = true;
-    refreshBtn.textContent = 'Refreshing...';
+  $('refreshBtn').addEventListener('click', (e) => {{
+    e.target.disabled = true; e.target.textContent = 'Refreshing...';
     const u = new URL(window.location.href);
     u.searchParams.set('refresh', String(Date.now()));
     window.location.href = u.toString();
@@ -672,57 +547,36 @@ def render_dashboard(team_to_rows: Dict[str, List[PullRow]], generated_at: str, 
 
 
 def main() -> int:
-  token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
-  days = int(os.getenv("DASHBOARD_DAYS", str(DEFAULT_DAYS)))
-  output_path = os.getenv("DASHBOARD_OUTPUT", DEFAULT_OUTPUT_PATH)
+    token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+    if not token:
+        print("ERROR: set GITHUB_TOKEN (PAT with repo scope, SSO-authorized for blackboard-learn).", file=sys.stderr)
+        return 1
 
-  now_utc = dt.datetime.now(dt.timezone.utc)
-  since_date = (now_utc - dt.timedelta(days=days)).strftime("%Y-%m-%d")
-  generated_at = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+    days = int(os.getenv("DASHBOARD_DAYS", str(DEFAULT_DAYS)))
+    output_path = os.getenv("DASHBOARD_OUTPUT", DEFAULT_OUTPUT_PATH)
+    now = dt.datetime.now(dt.timezone.utc)
+    since = (now - dt.timedelta(days=days)).date()
 
-  client = GitHubClient(token=token)
+    team_rows, errors = collect_rows(GitHubClient(token), since)
 
-  team_to_rows: Dict[str, List[PullRow]] = {}
-  total_fetch_errors = 0
-  for team in TEAMS:
-    print(f"Fetching team: {team}")
-    team_rows, fetch_errors = fetch_team_rows(client, team, since_date)
-    team_to_rows[team] = team_rows
-    total_fetch_errors += fetch_errors
+    # Don't publish an empty page over a good one when every repo failed
+    if len(errors) == len(REPOS):
+        print("ERROR: all repositories failed to load; check token scope and SSO authorization.", file=sys.stderr)
+        return 2
 
-  html_text = render_dashboard(team_to_rows, generated_at, days)
+    html_text = render_dashboard(team_rows, now.strftime("%Y-%m-%d %H:%M:%S UTC"), days, errors)
 
-  output_dir = os.path.dirname(output_path)
-  if output_dir:
-    os.makedirs(output_dir, exist_ok=True)
+    out_dir = os.path.dirname(output_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, ".nojekyll"), "w", encoding="utf-8") as f:
+            f.write("\n")
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(html_text)
 
-  with open(output_path, "w", encoding="utf-8") as f:
-    f.write(html_text)
-
-  if output_path != LEGACY_OUTPUT_PATH:
-    with open(LEGACY_OUTPUT_PATH, "w", encoding="utf-8") as f:
-      f.write(html_text)
-
-  if output_path.startswith("docs/") or output_path == "docs/index.html":
-    os.makedirs("docs", exist_ok=True)
-    with open("docs/.nojekyll", "w", encoding="utf-8") as f:
-      f.write("\n")
-
-  total = sum(len(v) for v in team_to_rows.values())
-  print(f"Dashboard generated: {output_path}")
-  if output_path != LEGACY_OUTPUT_PATH:
-    print(f"Local copy generated: {LEGACY_OUTPUT_PATH}")
-  print(f"Fetch errors: {total_fetch_errors}")
-  print(f"Teams: {len(TEAMS)} | PR rows: {total} | Lookback: {days} days")
-
-  if total == 0 and total_fetch_errors > 0:
-    print(
-      "ERROR: Dashboard has zero PR rows and one or more GitHub API fetch failures. "
-      "This usually indicates token scope, repository access, or SSO authorization issues."
-    )
-    return 2
-
-  return 0
+    total = sum(len(v) for v in team_rows.values())
+    print(f"Dashboard generated: {output_path} | PR rows: {total} | Lookback: {days} days | Fetch errors: {len(errors)}")
+    return 0
 
 
 if __name__ == "__main__":
