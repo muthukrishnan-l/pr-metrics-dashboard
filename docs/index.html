@@ -80,7 +80,7 @@
     <header class="hero">
       <h1>Scrum Teams PR Metrics Dashboard</h1>
       <div class="meta">Repos: blackboard-learn/learn + blackboard-learn/ultra | Last 30 days fetched</div>
-      <div class="meta">Last refresh: 2026-11-02 03:38:26 UTC</div>
+      <div class="meta">Last refresh: 2026-11-02 11:52:29 UTC</div>
       <button id="refreshBtn">Refresh Latest Status</button>
       <div class="team-list">Teams: Sparrow | Jupiter | Karikalas | Shine | Mamallas | Trailblazers | Sparkle | Madras | Triton | Helios | Krypton | Radon</div>
     </header>
@@ -88,10 +88,10 @@
     
 
     <div class="summary">
-      <div class="kpi"><div class="label">Total PRs</div><div class="value" id="kTotal">191</div></div>
-      <div class="kpi"><div class="label">Open</div><div class="value" id="kOpen">59</div></div>
-      <div class="kpi"><div class="label">Draft</div><div class="value" id="kDraft">26</div></div>
-      <div class="kpi"><div class="label">Merged</div><div class="value" id="kMerged">84</div></div>
+      <div class="kpi"><div class="label">Total PRs</div><div class="value" id="kTotal">196</div></div>
+      <div class="kpi"><div class="label">Open</div><div class="value" id="kOpen">58</div></div>
+      <div class="kpi"><div class="label">Draft</div><div class="value" id="kDraft">30</div></div>
+      <div class="kpi"><div class="label">Merged</div><div class="value" id="kMerged">86</div></div>
       <div class="kpi"><div class="label">Closed</div><div class="value" id="kClosed">22</div></div>
     </div>
 
@@ -141,8 +141,8 @@
           <td>2026-10-30</td>
           <td>-</td>
           <td>-</td>
-          <td>None yet</td>
-          <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+          <td>Team ✓ Tech Lead ✓</td>
+          <td>CES Approval, VS Approval</td>
           <td>-</td>
           <td class="no">✗ No</td>
         </tr>
@@ -206,10 +206,10 @@
           <td>2026-10-23</td>
           <td>-</td>
           <td>-</td>
-          <td>Team ✓ Tech Lead ✓ CES ✓</td>
-          <td>VS Approval</td>
+          <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
+          <td>All approved ✓</td>
           <td>-</td>
-          <td class="no">✗ No</td>
+          <td class="ok">✓ Yes</td>
         </tr>
         <tr data-state="open" data-created="2026-10-22" data-changes="jkhan07, tbednarekbb">
           <td><a href="https://github.com/blackboard-learn/ultra/pull/19592" target="_blank">#19592</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/703335" target="_blank">AB#703335</a></small></td>
@@ -414,8 +414,8 @@
           <td>2026-10-13</td>
           <td>-</td>
           <td>-</td>
-          <td>Tech Lead ✓</td>
-          <td>Team Approval, CES Approval, VS Approval</td>
+          <td>Team ✓ Tech Lead ✓ VS ✓</td>
+          <td>CES Approval</td>
           <td>-</td>
           <td class="no">✗ No</td>
         </tr>
@@ -624,7 +624,7 @@
     </section>
     <section class="team-section" data-team="Karikalas">
       <h2>Karikalas Team
-        <span class="team-summary">Total: 40 | Open: 10 | Draft: 1 | Merged: 24 | Closed: 5</span>
+        <span class="team-summary">Total: 41 | Open: 9 | Draft: 2 | Merged: 25 | Closed: 5</span>
       </h2>
       <div class="table-wrap">
         <table>
@@ -635,6 +635,19 @@
             </tr>
           </thead>
           <tbody>
+        <tr data-state="draft" data-created="2026-11-02" data-changes="-">
+          <td><a href="https://github.com/blackboard-learn/ultra/pull/19725" target="_blank">#19725</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/572522" target="_blank">AB#572522</a></small></td>
+          <td>AB#572522: Clear the unassigned selection when the Add Members picker is closed without assigning</td>
+          <td>jawakhar-n</td>
+          <td><span class="pill draft">Draft</span> <span class="repo">Ultra</span></td>
+          <td>2026-11-02</td>
+          <td>-</td>
+          <td>-</td>
+          <td>None yet</td>
+          <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+          <td>-</td>
+          <td class="">-</td>
+        </tr>
         <tr data-state="open" data-created="2026-10-30" data-changes="kala1304">
           <td><a href="https://github.com/blackboard-learn/learn/pull/9678" target="_blank">#9678</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/711198" target="_blank">AB#711198</a></small></td>
           <td>AB#711198 Stop group set saves from deleting groups after another tab or set empties the stage</td>
@@ -947,18 +960,18 @@
           <td>-</td>
           <td class="">-</td>
         </tr>
-        <tr data-state="open" data-created="2026-10-16" data-changes="-">
+        <tr data-state="merged" data-created="2026-10-16" data-changes="-">
           <td><a href="https://github.com/blackboard-learn/ultra/pull/19473" target="_blank">#19473</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/707135" target="_blank">AB#707135</a></small></td>
           <td>Feature/AB#707135 uia validation automatic enrollment reuse empty groups</td>
           <td>kapalanisamy</td>
-          <td><span class="pill open">Open</span> <span class="repo">Ultra</span></td>
+          <td><span class="pill merged">Merged</span> <span class="repo">Ultra</span></td>
           <td>2026-10-16</td>
-          <td>-</td>
-          <td>-</td>
+          <td>2026-11-02</td>
+          <td>2026-11-02</td>
           <td>Tech Lead ✓ VS ✓</td>
           <td>Team Approval, CES Approval</td>
           <td>-</td>
-          <td class="no">✗ No</td>
+          <td class="">-</td>
         </tr>
         <tr data-state="merged" data-created="2026-10-15" data-changes="-">
           <td><a href="https://github.com/blackboard-learn/ultra/pull/19428" target="_blank">#19428</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/707112" target="_blank">AB#707112</a></small></td>
@@ -1230,7 +1243,7 @@
     </section>
     <section class="team-section" data-team="Mamallas">
       <h2>Mamallas Team
-        <span class="team-summary">Total: 14 | Open: 8 | Draft: 1 | Merged: 4 | Closed: 1</span>
+        <span class="team-summary">Total: 17 | Open: 8 | Draft: 4 | Merged: 4 | Closed: 1</span>
       </h2>
       <div class="table-wrap">
         <table>
@@ -1241,7 +1254,20 @@
             </tr>
           </thead>
           <tbody>
-        <tr data-state="open" data-created="2026-10-26" data-changes="-">
+        <tr data-state="draft" data-created="2026-11-02" data-changes="-">
+          <td><a href="https://github.com/blackboard-learn/learn/pull/9687" target="_blank">#9687</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/703403" target="_blank">AB#703403</a></small></td>
+          <td>Feature/AB#703403 - Freeze journal comments in completed original courses</td>
+          <td>vijayanand-dev</td>
+          <td><span class="pill draft">Draft</span> <span class="repo">Learn</span></td>
+          <td>2026-11-02</td>
+          <td>-</td>
+          <td>-</td>
+          <td>None yet</td>
+          <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+          <td>-</td>
+          <td class="">-</td>
+        </tr>
+        <tr data-state="open" data-created="2026-10-26" data-changes="deepanbb">
           <td><a href="https://github.com/blackboard-learn/ultra/pull/19653" target="_blank">#19653</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/692004" target="_blank">AB#692004</a></small></td>
           <td>AB#692004 (4b/6) - Ally File Transformer upload area on the page</td>
           <td>stamilmani</td>
@@ -1251,7 +1277,7 @@
           <td>-</td>
           <td>Tech Lead ✓ VS ✓</td>
           <td>Team Approval, CES Approval</td>
-          <td>-</td>
+          <td>deepanbb</td>
           <td class="no">✗ No</td>
         </tr>
         <tr data-state="open" data-created="2026-10-26" data-changes="deepanbb, jkhan07, johntrianat">
@@ -1266,6 +1292,19 @@
           <td>Team Approval, CES Approval</td>
           <td>deepanbb, jkhan07, johntrianat</td>
           <td class="no">✗ No</td>
+        </tr>
+        <tr data-state="draft" data-created="2026-10-22" data-changes="-">
+          <td><a href="https://github.com/blackboard-learn/learn/pull/9612" target="_blank">#9612</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/703400" target="_blank">AB#703400</a></small></td>
+          <td>Feature/AB#703400-Freeze-Glossary</td>
+          <td>Tamilvanan-bb</td>
+          <td><span class="pill draft">Draft</span> <span class="repo">Learn</span></td>
+          <td>2026-10-22</td>
+          <td>-</td>
+          <td>-</td>
+          <td>None yet</td>
+          <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+          <td>-</td>
+          <td class="">-</td>
         </tr>
         <tr data-state="draft" data-created="2026-10-22" data-changes="-">
           <td><a href="https://github.com/blackboard-learn/learn/pull/9601" target="_blank">#9601</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/708120" target="_blank">AB#708120</a></small></td>
@@ -1371,6 +1410,19 @@
           <td>-</td>
           <td class="ok">✓ Yes</td>
         </tr>
+        <tr data-state="draft" data-created="2026-10-16" data-changes="stamilmani">
+          <td><a href="https://github.com/blackboard-learn/learn/pull/9543" target="_blank">#9543</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/703395" target="_blank">AB#703395</a></small></td>
+          <td>Feature/AB#703395-freeze-email-grade-transfer</td>
+          <td>Tamilvanan-bb</td>
+          <td><span class="pill draft">Draft</span> <span class="repo">Learn</span></td>
+          <td>2026-10-16</td>
+          <td>-</td>
+          <td>-</td>
+          <td>None yet</td>
+          <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+          <td>stamilmani</td>
+          <td class="">-</td>
+        </tr>
         <tr data-state="open" data-created="2026-10-16" data-changes="-">
           <td><a href="https://github.com/blackboard-learn/learn/pull/9538" target="_blank">#9538</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/703387" target="_blank">AB#703387</a></small></td>
           <td>Feature/AB#703387- Enforce read-only protection on course customization</td>
@@ -1429,7 +1481,7 @@
     </section>
     <section class="team-section" data-team="Trailblazers">
       <h2>Trailblazers Team
-        <span class="team-summary">Total: 13 | Open: 2 | Draft: 3 | Merged: 5 | Closed: 3</span>
+        <span class="team-summary">Total: 14 | Open: 2 | Draft: 4 | Merged: 5 | Closed: 3</span>
       </h2>
       <div class="table-wrap">
         <table>
@@ -1440,6 +1492,19 @@
             </tr>
           </thead>
           <tbody>
+        <tr data-state="draft" data-created="2026-11-02" data-changes="-">
+          <td><a href="https://github.com/blackboard-learn/ultra/pull/19724" target="_blank">#19724</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/692567" target="_blank">AB#692567</a></small></td>
+          <td>AB#692567 Show Video Studio recording options in RTL order when launched from a Test</td>
+          <td>ssathyakumar</td>
+          <td><span class="pill draft">Draft</span> <span class="repo">Ultra</span></td>
+          <td>2026-11-02</td>
+          <td>-</td>
+          <td>-</td>
+          <td>None yet</td>
+          <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+          <td>-</td>
+          <td class="">-</td>
+        </tr>
         <tr data-state="open" data-created="2026-10-30" data-changes="-">
           <td><a href="https://github.com/blackboard-learn/learn/pull/9672" target="_blank">#9672</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/705946" target="_blank">AB#705946</a></small></td>
           <td>Bugfix AB#705946 - Public API returns 400 for rules with a Video_Completed release condition</td>
@@ -1448,8 +1513,8 @@
           <td>2026-10-30</td>
           <td>-</td>
           <td>-</td>
-          <td>None yet</td>
-          <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
+          <td>VS ✓</td>
+          <td>Team Approval, Tech Lead Approval, CES Approval</td>
           <td>-</td>
           <td class="no">✗ No</td>
         </tr>
@@ -2308,7 +2373,7 @@
     </section>
     <section class="team-section" data-team="Madras">
       <h2>Madras Team
-        <span class="team-summary">Total: 19 | Open: 4 | Draft: 4 | Merged: 10 | Closed: 1</span>
+        <span class="team-summary">Total: 18 | Open: 4 | Draft: 3 | Merged: 10 | Closed: 1</span>
       </h2>
       <div class="table-wrap">
         <table>
@@ -2344,19 +2409,6 @@
           <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
           <td>-</td>
           <td class="no">✗ No</td>
-        </tr>
-        <tr data-state="draft" data-created="2026-10-22" data-changes="-">
-          <td><a href="https://github.com/blackboard-learn/learn/pull/9612" target="_blank">#9612</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/703400" target="_blank">AB#703400</a></small></td>
-          <td>Feature/AB#703400-Freeze-Glossary</td>
-          <td>Tamilvanan-bb</td>
-          <td><span class="pill draft">Draft</span> <span class="repo">Learn</span></td>
-          <td>2026-10-22</td>
-          <td>-</td>
-          <td>-</td>
-          <td>None yet</td>
-          <td>Team Approval, Tech Lead Approval, CES Approval, VS Approval</td>
-          <td>-</td>
-          <td class="">-</td>
         </tr>
         <tr data-state="draft" data-created="2026-10-21" data-changes="-">
           <td><a href="https://github.com/blackboard-learn/learn/pull/9586" target="_blank">#9586</a><br/><small class="wi">-</small></td>
@@ -2572,7 +2624,7 @@
     </section>
     <section class="team-section" data-team="Triton">
       <h2>Triton Team
-        <span class="team-summary">Total: 13 | Open: 2 | Draft: 7 | Merged: 4 | Closed: 0</span>
+        <span class="team-summary">Total: 14 | Open: 2 | Draft: 7 | Merged: 5 | Closed: 0</span>
       </h2>
       <div class="table-wrap">
         <table>
@@ -2583,6 +2635,19 @@
             </tr>
           </thead>
           <tbody>
+        <tr data-state="open" data-created="2026-11-02" data-changes="-">
+          <td><a href="https://github.com/blackboard-learn/ultra/pull/19722" target="_blank">#19722</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/702044" target="_blank">AB#702044</a></small></td>
+          <td>Bugfix - AB#702044 - [BB-UI] Version Bump for react-library and analytics-components to Fix Combobox Focus Loss</td>
+          <td>NaveenkumarAlagesan</td>
+          <td><span class="pill open">Open</span> <span class="repo">Ultra</span></td>
+          <td>2026-11-02</td>
+          <td>-</td>
+          <td>-</td>
+          <td>Team ✓</td>
+          <td>Tech Lead Approval, CES Approval, VS Approval</td>
+          <td>-</td>
+          <td class="no">✗ No</td>
+        </tr>
         <tr data-state="draft" data-created="2026-10-29" data-changes="-">
           <td><a href="https://github.com/blackboard-learn/ultra/pull/19688" target="_blank">#19688</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/709551" target="_blank">AB#709551</a></small></td>
           <td>Bugfix - AB#709551 - Fix dismiss button focus loss in QTI import/export banner</td>
@@ -2609,18 +2674,18 @@
           <td>-</td>
           <td class="">-</td>
         </tr>
-        <tr data-state="open" data-created="2026-10-20" data-changes="-">
+        <tr data-state="merged" data-created="2026-10-20" data-changes="-">
           <td><a href="https://github.com/blackboard-learn/learn/pull/9571" target="_blank">#9571</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/706298" target="_blank">AB#706298</a></small></td>
           <td>AB#706298 - Suppress Course Export/Import emails for standalone Rubric and Question Bank operations </td>
           <td>SrinivasanPalan</td>
-          <td><span class="pill open">Open</span> <span class="repo">Learn</span></td>
+          <td><span class="pill merged">Merged</span> <span class="repo">Learn</span></td>
           <td>2026-10-20</td>
-          <td>-</td>
-          <td>-</td>
+          <td>2026-11-02</td>
+          <td>2026-11-02</td>
           <td>Team ✓ Tech Lead ✓ CES ✓ VS ✓</td>
           <td>All approved ✓</td>
           <td>-</td>
-          <td class="ok">✓ Yes</td>
+          <td class="">-</td>
         </tr>
         <tr data-state="merged" data-created="2026-10-15" data-changes="-">
           <td><a href="https://github.com/blackboard-learn/ultra/pull/19431" target="_blank">#19431</a><br/><small class="wi"><a href="https://dev.azure.com/Blackboard-01/Learn/_workitems/edit/702538" target="_blank">AB#702538</a></small></td>
